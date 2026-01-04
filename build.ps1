@@ -28,6 +28,12 @@ Write-Host "Running PyInstaller (onefile)..." -ForegroundColor Cyan
   --icon ".\resources\images\iSecureVPN.ico" `
   --hidden-import "psutil" `
   --hidden-import "pystray" `
+  --hidden-import "utils" `
+  --hidden-import "gui" `
+  --hidden-import "i18n" `
+  --hidden-import "logger" `
+  --hidden-import "vpn_utils" `
+  --paths "src" `
   --add-binary ".\resources\core\nekobox_core.exe;resources/core" `
   --add-data ".\resources\core\nekobox_core.sha256;resources/core" `
   --add-data ".\resources\data\geoip.db;resources/data" `
