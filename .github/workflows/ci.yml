@@ -91,7 +91,7 @@ jobs:
           retention-days: 30
 
       - name: Publish rolling GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: latest-main
           name: Latest main build
@@ -103,6 +103,7 @@ jobs:
             dist/package/*.sha256
             dist/package/*.sig
           make_latest: true
-          allow_updates: true
+          overwrite_files: true
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
