@@ -45,7 +45,7 @@ jobs:
       - name: Verify app compiles
         run: |
           New-Item -ItemType Directory -Force -Path build\bin | Out-Null
-          go build -o build\bin\MyInternetVPN.exe .
+          go build -tags "desktop,production" -ldflags "-w -s -H windowsgui" -o build\bin\MyInternetVPN.exe .
         shell: pwsh
 
   package:

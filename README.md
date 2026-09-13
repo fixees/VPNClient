@@ -45,6 +45,10 @@ scripts/             build / package helpers
 .\scripts\package.ps1
 ```
 
+> Important: do **not** run plain `go build`. Wails needs:
+> `go build -tags "desktop,production" -ldflags "-w -s -H windowsgui"`
+> (or just `wails build` / `.\scripts\build.ps1`).
+
 Configure auto-update in `%APPDATA%\MyInternetVPN\settings.json`:
 
 ```json

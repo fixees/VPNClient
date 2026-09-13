@@ -13,7 +13,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
 )
 
-// Set via: go build -ldflags "-X main.version=<sha>"
+// Set via: go build -tags "desktop,production" -ldflags "-w -s -H windowsgui -X main.version=<sha>"
 var version = "dev"
 
 //go:embed all:frontend/dist

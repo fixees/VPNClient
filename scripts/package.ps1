@@ -36,8 +36,8 @@ New-Item -ItemType Directory -Force -Path (Join-Path $outDir 'resources\core') |
 New-Item -ItemType Directory -Force -Path (Join-Path $outDir 'resources\images') | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $outDir 'resources\update') | Out-Null
 
-$ldflags = "-X main.version=$version"
-go build -ldflags $ldflags -o (Join-Path $outDir 'MyInternetVPN.exe') .
+$ldflags = "-w -s -H windowsgui -X main.version=$version"
+go build -tags "desktop,production" -ldflags $ldflags -o (Join-Path $outDir 'MyInternetVPN.exe') .
 
 Copy-Item (Join-Path $root 'resources\core\mihomo.exe') (Join-Path $outDir 'resources\core\mihomo.exe') -Force
 if (Test-Path (Join-Path $root 'resources\core\mihomo.exe.sha256')) {

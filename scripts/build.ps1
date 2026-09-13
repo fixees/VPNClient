@@ -15,7 +15,8 @@ Pop-Location
 
 go test ./tests/... -count=1
 New-Item -ItemType Directory -Force -Path "build\bin" | Out-Null
-go build -o "build\bin\MyInternetVPN.exe" .
+# Wails requires desktop,production tags (plain `go build` shows a runtime error dialog).
+go build -tags "desktop,production" -ldflags "-w -s -H windowsgui" -o "build\bin\MyInternetVPN.exe" .
 Write-Host "Built build\bin\MyInternetVPN.exe"
 Write-Host "For a release zip use: .\scripts\package.ps1"
-Write-Host "For full Wails packaging: wails build"
+Write-Host "Or use Wails CLI: wails build"
