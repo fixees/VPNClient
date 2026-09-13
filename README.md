@@ -1,145 +1,117 @@
-# Custom Neko-Client
+# MyInternetVPN Client
 
-Кастомная переделка [NekoBox](https://github.com/MatsuriDayo/nekoray) - VPN клиент на базе sing-box для Windows.
+Windows 10/11 desktop client for [myinternetvpn.com](https://myinternetvpn.com).
 
-![iSecure VPN Client](resources/images/nekobox.png)
+**Stack:** Go + [Wails](https://wails.io) · **Core:** [mihomo](https://github.com/MetaCubeX/mihomo) (Clash Meta)
 
-## 📋 Описание
+> [Hiddify](https://github.com/hiddify/hiddify-app) uses sing-box. This client uses **mihomo**
+> (Clash Verge model: spawn core → External Controller HTTP API).
 
-Custom Neko-Client - это модифицированная версия NekoBox с расширенным функционалом, улучшенным интерфейсом и дополнительными возможностями безопасности. Клиент использует ядро `nekobox_core.exe` (sing-box) для работы VPN через TUN интерфейс.
+## Branches
 
-## 📦 Установка
+| Branch | Purpose |
+|--------|---------|
+| `main` | Stable releases. CI runs tests and **auto-builds** a Windows zip package on every push. |
+| `dev` | Active development. CI runs tests (and compile check) on push/PR. No release package. |
 
-### Требования
-- Windows 10/11
-- Python 3.13 (для сборки)
+Flow: develop on `dev` → PR into `main` → package published as artifact + rolling release `latest-main`.
 
-### Сборка из исходников
+## Layout
 
-1. Клонируйте репозиторий:
-```bash
-git clone <repository-url>
-cd CustomNekobox
+```text
+app.go / main.go     Wails app + bindings
+internal/            backend packages
+tests/               black-box + integration tests
+frontend/            Vite UI
+resources/core/      mihomo.exe (download via script)
+scripts/             build / package helpers
+.github/workflows/   CI for main & dev
 ```
 
-2. Установите зависимости:
-```bash
-pip install -r requirements.txt
-```
+## Prerequisites
 
-3. Поместите необходимые файлы:
-   - `nekobox_core.exe` в `resources/core/`
-   - `nekobox_core.sha256` в `resources/core/`
-   - `geoip.db` и `geosite.db` в `resources/data/`
-   - `nekobox.png` в `resources/images/`
-   - `success_start.mp3` и `failed_start.mp3` в `resources/sounds/`
+- Go 1.22+
+- Node.js 20+
+- Wails CLI (optional): `go install github.com/wailsapp/wails/v2/cmd/wails@latest`
+- WebView2 (included with Windows 10/11)
 
-4. Соберите исполняемый файл:
+## Setup
+
 ```powershell
-.\build.ps1
+.\scripts\download-mihomo.ps1
+.\scripts\build.ps1
+
+# release zip (same as main CI):
+.\scripts\package.ps1
 ```
 
-Готовый `.exe` будет в папке `dist/`
+Configure auto-update in `%APPDATA%\MyInternetVPN\settings.json`:
 
-## ⚙️ Настройки
+```json
+{
+  "updateOwner": "your-org",
+  "updateRepo": "your-client-repo",
+  "updateTag": "latest-main"
+}
+```
 
-Доступны в меню Settings:
-- **Traffic Rules** - выбор режима маршрутизации
-- **Kill Switch** - блокировка интернета при отключении VPN
-- **Auto Reconnect** - автоматическое переподключение
-- **DNS Leak Protection** - защита от утечек DNS
-- **Language** - выбор языка 
-- **Log Level** - уровень детализации логов
-- **TUN/DNS** - настройки TUN интерфейса и DNS серверов
-- **Autostart** - автозапуск с Windows
-- **Tray** - работа в системном трее
+Data: `%APPDATA%\MyInternetVPN\` (`profiles.json`, `settings.json`, `core/`, `updates/`).
+
+## Backend capabilities
+
+- TUN with Admin/UAC check + relaunch elevation
+- System proxy when TUN is off
+- Kill switch + DNS leak guard (Windows firewall rules)
+- Auto-reconnect health monitor
+- Live speed/totals from mihomo `/traffic` + `/connections`
+- Core SHA-256 integrity sidecar
+- GeoIP/GeoSite assets beside core
+- Import `vless://` `vmess://` `ss://` / Clash YAML / JSON / **http(s) subscription URL**
+- Subscription quota/expiry sync (`subscription-userinfo`) + scheduled node refresh
+- Modes: rule / global / direct
+- Node list + switch (mihomo PROXY group) with delay
+- Single-instance lock, autostart, close-to-hide, Quit/Show
+- File logger with secret redaction (`%APPDATA%\MyInternetVPN\client.log`)
+- Apply downloaded update only after **SHA-256 + Ed25519** verification
+- System tray icon (Show / Connect-Disconnect / Quit)
+- Bulk URL-test for all nodes
+- Graceful core stop (interrupt, then kill)
+- Auto-update check/download from GitHub `latest-main`
+
+### Signed releases
+
+Packages on `main` must include:
+
+- `*.zip`
+- `*.zip.sha256`
+- `*.zip.sig` (Ed25519 over zip bytes)
+
+Public key: `resources/update/ed25519_public.key` (embedded in the app).  
+Private key: CI secret `UPDATE_SIGNING_KEY` or local `secrets/update_ed25519_private.key` (gitignored).
+
+```powershell
+go run ./scripts/gen-update-keys   # once
+.\scripts\package.ps1              # builds + checksum + signature
+```
 
 
-## ✅ Плюсы
+## Tests
 
-1. **Расширенная функциональность**
-   - Kill Switch для максимальной безопасности
-   - DNS Leak Protection
-   - Автоматическое переподключение
-   - Health Check мониторинг
+All automated tests live under `tests/`:
 
-2. **Удобный интерфейс**
-   - Современный дизайн
-   - Локализация (RU/EN)
-   - Работа в системном трее
-   - Интуитивное управление
+```powershell
+go test ./tests/... -count=1
+```
 
-3. **Гибкая настройка**
-   - Множество режимов трафика
-   - Настройка TUN/DNS параметров
-   - Структурированное логирование
-   - Автоочистка логов
+## CI
 
-4. **Безопасность**
-   - Проверка целостности ядра (SHA256)
-   - Изолированное хранение данных
-   - Защита от утечек DNS
-   - Kill Switch для защиты данных
+Workflow: [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
 
-5. **Мониторинг**
-   - Статистика трафика в реальном времени
-   - Отображение IP и геолокации
-   - Таймер сессии
-   - Тесты соединения
+- **push/PR → `main` or `dev`:** run `go test ./tests/...`, build frontend, compile app
+- **push → `main` only:** create `MyInternetVPN-windows-amd64-*.zip`, upload Actions artifact, update GitHub release tag `latest-main`
 
-6. **Удобство использования**
-   - Автозапуск
-   - Работа в трее
-   - Быстрое переключение серверов
-   - Автовыбор сервера
+## Roadmap
 
-## ⚠️ Минусы
-
-1. **Платформа**
-   - Работает только на Windows
-
-2. **Зависимости**
-   - Требует внешний бинарный файл `nekobox_core.exe`
-   - Зависит от баз данных `geoip.db` и `geosite.db`
-   - Необходим Python 3.13 для сборки
-
-3. **Сложность настройки**
-   - Требует ручной настройки серверов
-   - Для некоторых функций нужны дополнительные настройки
-   - NekoBox-совместимый режим требует экспорта шаблона
-
-4. **Производительность**
-   - GUI на Tkinter (не самый быстрый фреймворк)
-   - Может потреблять больше памяти чем нативный клиент
-
-5. **Функциональность**
-   - Kill Switch реализован упрощенно (Windows firewall API)
-   - DNS Leak Protection базовая версия
-   - Health Check требует доработки
-   - Нет поддержки других протоколов кроме VLESS
-
-6. **Поддержка**
-   - Кастомная версия, не связана с официальным NekoBox
-   - Возможны проблемы совместимости при обновлении ядра
-   - Ограниченная документация
-
-## 🔒 Безопасность
-
-- Клиент использует проверенную криптографию через sing-box
-- Все конфигурации хранятся локально
-- Проверка целостности ядра перед запуском
-- Логи не содержат чувствительных данных (UUID, ключи)
-
-## 📝 Лицензия
-
-Проект основан на NekoBox (GPL-3.0). Проверьте лицензию оригинального проекта.
-
-## 🙏 Благодарности
-
-- [NekoBox](https://github.com/MatsuriDayo/nekoray) - оригинальный проект
-- [sing-box](https://github.com/SagerNet/sing-box) - ядро VPN
-
----
-
-**Примечание**: Это кастомная версия клиента. Используйте на свой риск. Для критически важных задач рекомендуется использовать официальные проверенные решения.
-
+- Auth / subscription sync with myinternetvpn.com and Telegram bot
+- System tray, autostart, kill switch
+- Import Clash / Clash Meta subscription URLs

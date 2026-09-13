@@ -1,0 +1,37 @@
+# Binaries / local builds
+*.exe
+*.dll
+*.test
+*.out
+/build/
+/dist/
+
+# Go
+/vendor/
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+
+# Mihomo core (download via scripts/download-mihomo.ps1)
+resources/core/mihomo.exe
+resources/core/mihomo.exe.sha256
+resources/core/*.db
+resources/core/*.mmdb
+resources/core/*.dat
+resources/core/*.metadb
+
+# Signing secrets (never commit private keys)
+secrets/
+*.pem
+*_private.key
+
+# IDE / OS / local
+.vs/
+.vscode/
+.idea/
+.cursor/
+.DS_Store
+Thumbs.db
+*.slnx
+*.user

@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
+          cache: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend (embed assets)
+        working-directory: frontend
+        run: npm run build
+
+      - name: Run tests
+        run: go test ./tests/... -count=1 -timeout 5m
+
+      - name: Verify app compiles
+        run: |
+          New-Item -ItemType Directory -Force -Path build\bin | Out-Null
+          go build -o build\bin\MyInternetVPN.exe .
+        shell: pwsh
+
+  package:
+    name: Package (main)
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
+          cache: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build signed package
+        shell: pwsh
+        env:
+          APP_VERSION: ${{ github.sha }}
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: .\scripts\package.ps1
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MyInternetVPN-windows-amd64
+          path: |
+            dist/package/*.zip
+            dist/package/*.sha256
+            dist/package/*.sig
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish rolling GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-main
+          name: Latest main build
+          body: |
+            Stable signed package from `main` (`${{ github.sha }}`).
+            Assets: `.zip` + `.sha256` + `.sig` (Ed25519).
+          files: |
+            dist/package/*.zip
+            dist/package/*.sha256
+            dist/package/*.sig
+          make_latest: true
+          allow_updates: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

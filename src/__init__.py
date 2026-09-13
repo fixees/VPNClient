@@ -1,4 +1,0 @@
-"""
-iSecure VPN - Source package.
-"""
-
