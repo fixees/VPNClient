@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	"myinternetvpn/client/internal/defaults"
 	"myinternetvpn/client/internal/profiles"
 )
 
@@ -25,7 +26,7 @@ func Due(p profiles.Profile, globalIntervalMin int, now time.Time) bool {
 	} else if globalIntervalMin > 0 {
 		wait = time.Duration(globalIntervalMin) * time.Minute
 	} else {
-		wait = 6 * time.Hour
+		wait = time.Duration(defaults.DefaultSubIntervalMin) * time.Minute
 	}
 	return !last.Add(wait).After(now)
 }

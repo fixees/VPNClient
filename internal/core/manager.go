@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"sync"
 	"time"
 
 	"myinternetvpn/client/internal/api"
+	"myinternetvpn/client/internal/defaults"
 )
 
 // API is the subset of mihomo controller used by Manager.
@@ -50,10 +52,10 @@ func NewManager(opts Options) *Manager {
 		opts.Runner = &execRunner{}
 	}
 	if opts.ReadyTimeout == 0 {
-		opts.ReadyTimeout = 8 * time.Second
+		opts.ReadyTimeout = defaults.ReadyTimeout
 	}
 	if opts.StopGrace == 0 {
-		opts.StopGrace = 3 * time.Second
+		opts.StopGrace = defaults.StopGrace
 	}
 	if opts.API == nil {
 		opts.API = api.NewClient(opts.ControllerURL, opts.Secret)
@@ -69,18 +71,20 @@ func (m *Manager) Running() bool {
 
 func (m *Manager) Start(configYAML []byte) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	if m.opts.CorePath == "" {
+		m.mu.Unlock()
 		return fmt.Errorf("mihomo binary path is empty")
 	}
 	if _, err := os.Stat(m.opts.CorePath); err != nil {
+		m.mu.Unlock()
 		return fmt.Errorf("mihomo binary not found at %s: %w", m.opts.CorePath, err)
 	}
 	if err := os.MkdirAll(m.opts.WorkDir, 0o755); err != nil {
+		m.mu.Unlock()
 		return err
 	}
 	if err := os.WriteFile(m.opts.ConfigPath, configYAML, 0o600); err != nil {
+		m.mu.Unlock()
 		return err
 	}
 
@@ -90,14 +94,26 @@ func (m *Manager) Start(configYAML []byte) error {
 	}
 
 	args := []string{"-d", m.opts.WorkDir, "-f", m.opts.ConfigPath}
-	if err := m.opts.Runner.Start(m.opts.CorePath, args, m.opts.WorkDir); err != nil {
+	apiClient := m.opts.API
+	readyTimeout := m.opts.ReadyTimeout
+	stopGrace := m.opts.StopGrace
+	corePath := m.opts.CorePath
+	workDir := m.opts.WorkDir
+	runner := m.opts.Runner
+
+	if err := runner.Start(corePath, args, workDir); err != nil {
+		m.mu.Unlock()
 		return fmt.Errorf("start mihomo: %w", err)
 	}
 	m.running = true
+	m.mu.Unlock()
 
-	if err := m.opts.API.WaitHealthy(m.opts.ReadyTimeout); err != nil {
-		_ = m.opts.Runner.Stop(m.opts.StopGrace)
+	// Wait for controller outside the lock so Stop/Running stay responsive.
+	if err := apiClient.WaitHealthy(readyTimeout); err != nil {
+		m.mu.Lock()
+		_ = runner.Stop(stopGrace)
 		m.running = false
+		m.mu.Unlock()
 		return fmt.Errorf("mihomo API not ready: %w", err)
 	}
 	return nil
@@ -140,6 +156,13 @@ func (r *execRunner) Stop(grace time.Duration) error {
 		return nil
 	}
 	proc := r.cmd.Process
+	if runtime.GOOS == "windows" {
+		// Interrupt is unreliable for Win32 console-less children; kill promptly.
+		err := proc.Kill()
+		<-r.done
+		r.cmd = nil
+		return err
+	}
 	_ = proc.Signal(os.Interrupt)
 
 	timer := time.NewTimer(grace)

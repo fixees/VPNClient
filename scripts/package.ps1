@@ -1,6 +1,7 @@
 # Build a distributable Windows zip for MyInternetVPN (+ checksum + Ed25519 signature).
+# Single-file exe: mihomo/geo/icons are embedded and extracted to AppData at runtime.
 # Output:
-#   dist/package/MyInternetVPN-windows-amd64-<version>.zip
+#   dist/package/MyInternetVPN-windows-amd64-<version>.zip   (contains only the .exe)
 #   dist/package/MyInternetVPN-windows-amd64-<version>.zip.sha256
 #   dist/package/MyInternetVPN-windows-amd64-<version>.zip.sig
 $ErrorActionPreference = 'Stop'
@@ -25,28 +26,23 @@ Pop-Location
 Write-Host "==> Tests"
 go test ./tests/... -count=1
 
-Write-Host "==> Download mihomo core"
-& "$root\scripts\download-mihomo.ps1"
+Write-Host "==> Download mihomo core (required for embed)"
+$coreExe = Join-Path $root 'resources\core\mihomo.exe'
+$geoIP = Join-Path $root 'resources\core\geoip.metadb'
+$geoSite = Join-Path $root 'resources\core\geosite.dat'
+if (-not ((Test-Path $coreExe) -and (Test-Path $geoIP) -and (Test-Path $geoSite))) {
+  & "$root\scripts\download-mihomo.ps1"
+} else {
+  Write-Host "Using existing resources\core"
+}
 
-Write-Host "==> Build app"
+Write-Host "==> Build single-file app"
 $outDir = Join-Path $root 'dist\package\staging'
 if (Test-Path $outDir) { Remove-Item $outDir -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
-New-Item -ItemType Directory -Force -Path (Join-Path $outDir 'resources\core') | Out-Null
-New-Item -ItemType Directory -Force -Path (Join-Path $outDir 'resources\images') | Out-Null
-New-Item -ItemType Directory -Force -Path (Join-Path $outDir 'resources\update') | Out-Null
 
 $ldflags = "-w -s -H windowsgui -X main.version=$version"
 go build -tags "desktop,production" -ldflags $ldflags -o (Join-Path $outDir 'MyInternetVPN.exe') .
-
-Copy-Item (Join-Path $root 'resources\core\mihomo.exe') (Join-Path $outDir 'resources\core\mihomo.exe') -Force
-if (Test-Path (Join-Path $root 'resources\core\mihomo.exe.sha256')) {
-  Copy-Item (Join-Path $root 'resources\core\mihomo.exe.sha256') (Join-Path $outDir 'resources\core\mihomo.exe.sha256') -Force
-}
-if (Test-Path (Join-Path $root 'resources\images\iSecureVPN.ico')) {
-  Copy-Item (Join-Path $root 'resources\images\iSecureVPN.ico') (Join-Path $outDir 'resources\images\iSecureVPN.ico') -Force
-}
-Copy-Item (Join-Path $root 'resources\update\ed25519_public.key') (Join-Path $outDir 'resources\update\ed25519_public.key') -Force
 
 $zipName = "MyInternetVPN-windows-amd64-$version.zip"
 $pkgDir = Join-Path $root 'dist\package'
@@ -54,7 +50,8 @@ $zipPath = Join-Path $pkgDir $zipName
 New-Item -ItemType Directory -Force -Path $pkgDir | Out-Null
 if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
 
-Compress-Archive -Path (Join-Path $outDir '*') -DestinationPath $zipPath -Force
+# Zip contains only the executable — resources are embedded.
+Compress-Archive -Path (Join-Path $outDir 'MyInternetVPN.exe') -DestinationPath $zipPath -Force
 
 $hash = (Get-FileHash -Algorithm SHA256 -Path $zipPath).Hash.ToLowerInvariant()
 $shaPath = "$zipPath.sha256"
@@ -73,5 +70,5 @@ if (-not (Test-Path $privPath)) {
 $sigPath = "$zipPath.sig"
 go run ./scripts/sign-release $zipPath $privPath $sigPath
 
-Write-Host "Package: $zipPath"
+Write-Host "Package (single exe): $zipPath"
 Write-Host "Signature: $sigPath"

@@ -39,6 +39,23 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+      - name: Cache mihomo core
+        uses: actions/cache@v4
+        with:
+          path: resources/core
+          key: mihomo-windows-amd64-${{ hashFiles('scripts/download-mihomo.ps1') }}
+          restore-keys: |
+            mihomo-windows-amd64-
+
+      - name: Download mihomo (for embed)
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if (-not (Test-Path 'resources\core\mihomo.exe') -or -not (Test-Path 'resources\core\geoip.metadb')) {
+            .\scripts\download-mihomo.ps1
+          }
+
       - name: Run tests
         run: go test ./tests/... -count=1 -timeout 5m
 
@@ -72,12 +89,26 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
+      - name: Cache mihomo core
+        uses: actions/cache@v4
+        with:
+          path: resources/core
+          key: mihomo-windows-amd64-${{ hashFiles('scripts/download-mihomo.ps1') }}
+          restore-keys: |
+            mihomo-windows-amd64-
+
       - name: Build signed package
         shell: pwsh
         env:
           APP_VERSION: ${{ github.sha }}
           UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
-        run: .\scripts\package.ps1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if (-not (Test-Path 'resources\core\mihomo.exe')) {
+            Write-Host 'mihomo cache miss — downloading'
+          }
+          .\scripts\package.ps1
+
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

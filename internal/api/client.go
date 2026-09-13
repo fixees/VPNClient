@@ -7,9 +7,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
+
+	"myinternetvpn/client/internal/defaults"
 )
 
 // VersionInfo is returned by GET /version.
@@ -30,11 +34,26 @@ type ConnectionsInfo struct {
 	UploadTotal   int64 `json:"uploadTotal"`
 }
 
+// LiveSnapshot is a single round-trip bundle for UI polling.
+type LiveSnapshot struct {
+	Version  string
+	Mode     string
+	Up       int64
+	Down     int64
+	TotalUp  int64
+	TotalDown int64
+}
+
 // Client talks to mihomo external-controller HTTP API.
 type Client struct {
-	baseURL    string
-	secret     string
-	httpClient *http.Client
+	baseURL      string
+	secret       string
+	httpClient   *http.Client
+	streamClient *http.Client
+
+	mu           sync.Mutex
+	cachedVer    string
+	cachedVerAt  time.Time
 }
 
 func NewClient(controllerAddr, secret string) *Client {
@@ -43,17 +62,49 @@ func NewClient(controllerAddr, secret string) *Client {
 		base = "http://" + base
 	}
 	base = strings.TrimRight(base, "/")
+	transport := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   2 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		MaxIdleConns:        8,
+		IdleConnTimeout:     60 * time.Second,
+		DisableCompression:  true,
+		ForceAttemptHTTP2:   false,
+	}
 	return &Client{
 		baseURL: base,
 		secret:  secret,
 		httpClient: &http.Client{
-			Timeout: 3 * time.Second,
+			Timeout:   defaults.APITimeout,
+			Transport: transport,
+		},
+		streamClient: &http.Client{
+			Timeout:   0, // streaming; callers bind ctx
+			Transport: transport,
 		},
 	}
 }
 
+// UpdateEndpoint switches controller address/secret (after settings change).
+func (c *Client) UpdateEndpoint(controllerAddr, secret string) {
+	base := controllerAddr
+	if !strings.HasPrefix(base, "http://") && !strings.HasPrefix(base, "https://") {
+		base = "http://" + base
+	}
+	c.mu.Lock()
+	c.baseURL = strings.TrimRight(base, "/")
+	c.secret = secret
+	c.cachedVer = ""
+	c.cachedVerAt = time.Time{}
+	c.mu.Unlock()
+}
+
 // BaseURL returns the normalized controller base URL.
 func (c *Client) BaseURL() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return c.baseURL
 }
 
@@ -62,7 +113,23 @@ func (c *Client) Version() (VersionInfo, error) {
 	if err := c.getJSON("/version", &out); err != nil {
 		return VersionInfo{}, err
 	}
+	c.mu.Lock()
+	c.cachedVer = out.Version
+	c.cachedVerAt = time.Now()
+	c.mu.Unlock()
 	return out, nil
+}
+
+func (c *Client) cachedVersion() (string, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.cachedVer == "" {
+		return "", false
+	}
+	if time.Since(c.cachedVerAt) > defaults.VersionCacheTTL {
+		return "", false
+	}
+	return c.cachedVer, true
 }
 
 func (c *Client) Healthy() bool {
@@ -72,14 +139,13 @@ func (c *Client) Healthy() bool {
 
 // TrafficOnce reads a single sample from the chunked /traffic stream.
 func (c *Client) TrafficOnce(ctx context.Context) (TrafficSnapshot, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/traffic", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL()+"/traffic", nil)
 	if err != nil {
 		return TrafficSnapshot{}, err
 	}
 	c.applyAuth(req)
 
-	client := &http.Client{Timeout: 0} // stream; rely on ctx
-	resp, err := client.Do(req)
+	resp, err := c.streamClient.Do(req)
 	if err != nil {
 		return TrafficSnapshot{}, err
 	}
@@ -108,6 +174,58 @@ func (c *Client) Connections() (ConnectionsInfo, error) {
 		return ConnectionsInfo{}, err
 	}
 	return out, nil
+}
+
+// Live gathers version/mode/traffic/totals concurrently for UI polls.
+func (c *Client) Live(ctx context.Context) LiveSnapshot {
+	var (
+		ver, mode string
+		up, down, totalUp, totalDown int64
+		wg sync.WaitGroup
+	)
+
+	if cached, ok := c.cachedVersion(); ok {
+		ver = cached
+	} else {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if v, err := c.Version(); err == nil {
+				ver = v.Version
+			}
+		}()
+	}
+
+	wg.Add(3)
+	go func() {
+		defer wg.Done()
+		if m, err := c.Mode(); err == nil {
+			mode = m
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		tctx, cancel := context.WithTimeout(ctx, defaults.TrafficSampleTimeout)
+		defer cancel()
+		if snap, err := c.TrafficOnce(tctx); err == nil {
+			up, down = snap.Up, snap.Down
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		if conn, err := c.Connections(); err == nil {
+			totalUp, totalDown = conn.UploadTotal, conn.DownloadTotal
+		}
+	}()
+	wg.Wait()
+	return LiveSnapshot{
+		Version:   ver,
+		Mode:      mode,
+		Up:        up,
+		Down:      down,
+		TotalUp:   totalUp,
+		TotalDown: totalDown,
+	}
 }
 
 // SetMode patches runtime mode: rule | global | direct.
@@ -141,7 +259,7 @@ func (c *Client) doJSON(method, path string, body []byte, dest any) error {
 	if body != nil {
 		reader = bytes.NewReader(body)
 	}
-	req, err := http.NewRequest(method, c.baseURL+path, reader)
+	req, err := http.NewRequest(method, c.BaseURL()+path, reader)
 	if err != nil {
 		return err
 	}
@@ -154,7 +272,7 @@ func (c *Client) doJSON(method, path string, body []byte, dest any) error {
 		return err
 	}
 	defer resp.Body.Close()
-	raw, err := io.ReadAll(resp.Body)
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 	if err != nil {
 		return err
 	}
@@ -168,21 +286,28 @@ func (c *Client) doJSON(method, path string, body []byte, dest any) error {
 }
 
 func (c *Client) applyAuth(req *http.Request) {
-	if c.secret != "" {
-		req.Header.Set("Authorization", "Bearer "+c.secret)
+	c.mu.Lock()
+	secret := c.secret
+	c.mu.Unlock()
+	if secret != "" {
+		req.Header.Set("Authorization", "Bearer "+secret)
 	}
 }
 
 // WaitHealthy polls until the controller answers or timeout elapses.
 func (c *Client) WaitHealthy(timeout time.Duration) error {
+	if timeout <= 0 {
+		timeout = defaults.ReadyTimeout
+	}
 	deadline := time.Now().Add(timeout)
 	var last error
 	for time.Now().Before(deadline) {
-		if c.Healthy() {
+		if _, err := c.Version(); err == nil {
 			return nil
+		} else {
+			last = err
 		}
-		last = fmt.Errorf("controller not ready")
-		time.Sleep(150 * time.Millisecond)
+		time.Sleep(defaults.HealthPollInterval)
 	}
 	if last == nil {
 		last = fmt.Errorf("controller not ready")

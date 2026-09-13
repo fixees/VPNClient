@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+
+	"myinternetvpn/client/internal/defaults"
 )
 
 // ProxyGroup is a selector/url-test/etc group from GET /proxies.
@@ -71,10 +73,10 @@ func (c *Client) CloseConnections() error {
 // TestDelay triggers URL-test delay for a proxy name.
 func (c *Client) TestDelay(name, testURL string, timeoutMs int) (int, error) {
 	if testURL == "" {
-		testURL = "https://www.gstatic.com/generate_204"
+		testURL = defaults.URLTestURL
 	}
 	if timeoutMs <= 0 {
-		timeoutMs = 5000
+		timeoutMs = defaults.URLTestTimeoutMS
 	}
 	path := fmt.Sprintf("/proxies/%s/delay?url=%s&timeout=%d",
 		url.PathEscape(name), url.QueryEscape(testURL), timeoutMs)
@@ -90,7 +92,7 @@ func (c *Client) TestDelay(name, testURL string, timeoutMs int) (int, error) {
 // ListSelectableNodes returns PROXY group members with best-known delay.
 func (c *Client) ListSelectableNodes(group string) (ProxyGroup, []ProxyNodeRuntime, error) {
 	if group == "" {
-		group = "PROXY"
+		group = defaults.ProxyGroup
 	}
 	g, err := c.Group(group)
 	if err != nil {
@@ -122,7 +124,7 @@ func (c *Client) ListSelectableNodes(group string) (ProxyGroup, []ProxyNodeRunti
 		}
 		// Skip nested groups from leaf list except AUTO which users may select.
 		if node.Type == "Selector" || node.Type == "URLTest" || node.Type == "Fallback" || node.Type == "LoadBalance" {
-			if name != "AUTO" {
+			if name != defaults.AutoGroup {
 				continue
 			}
 		}

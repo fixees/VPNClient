@@ -8,11 +8,13 @@ import (
 	"path/filepath"
 	"strings"
 
+	"myinternetvpn/client/internal/defaults"
+
 	"golang.org/x/sys/windows/registry"
 )
 
 const autostartKey = `Software\Microsoft\Windows\CurrentVersion\Run`
-const autostartValue = "MyInternetVPN"
+const autostartValue = defaults.AutostartName
 
 // EnableAutostart registers the current executable to run at user logon.
 func EnableAutostart() error {

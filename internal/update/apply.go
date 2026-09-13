@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"myinternetvpn/client/internal/defaults"
 )
 
 // ApplyZip extracts a release zip next to the running executable and launches a
@@ -48,8 +50,8 @@ if not errorlevel 1 (
   goto wait
 )
 xcopy /E /Y /I "%%STAGE%%\*" "%%TARGET%%\" >nul
-start "" "%%TARGET%%\MyInternetVPN.exe"
-`, pid, stage, targetDir, pid)
+start "" "%%TARGET%%\%s"
+`, pid, stage, targetDir, pid, defaults.ProductExe)
 
 	if err := os.WriteFile(helperPath, []byte(script), 0o755); err != nil {
 		return "", err

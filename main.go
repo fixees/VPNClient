@@ -1,16 +1,19 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"log"
 	"os"
 
+	"myinternetvpn/client/internal/defaults"
 	"myinternetvpn/client/internal/winutil"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // Set via: go build -tags "desktop,production" -ldflags "-w -s -H windowsgui -X main.version=<sha>"
@@ -20,21 +23,32 @@ var version = "dev"
 var assets embed.FS
 
 func main() {
+	// Always run elevated (TUN / firewall / routes). Manifest also requests admin;
+	// this covers builds without embedded requireAdministrator.
+	okAdmin, err := winutil.EnsureAdmin()
+	if err != nil {
+		winutil.MessageBox(defaults.WindowTitle, "Нужны права администратора.\nЗапустите приложение от имени администратора.", true)
+		os.Exit(1)
+	}
+	if !okAdmin {
+		// Elevated child process was started; exit this unelevated copy.
+		os.Exit(0)
+	}
+
 	ok, err := winutil.AcquireSingleInstance()
 	if err != nil {
 		log.Printf("single-instance warning: %v", err)
 	}
 	if !ok {
-		log.Println("MyInternetVPN is already running")
+		winutil.HandleSecondInstance(defaults.WindowTitle)
 		os.Exit(0)
 	}
 	defer winutil.ReleaseSingleInstance()
 
 	app := NewApp()
-	hideOnClose := true
 
 	err = wails.Run(&options.App{
-		Title:     "MyInternetVPN",
+		Title:     defaults.WindowTitle,
 		Width:     1100,
 		Height:    720,
 		MinWidth:  900,
@@ -45,7 +59,14 @@ func main() {
 		BackgroundColour:  &options.RGBA{R: 7, G: 20, B: 39, A: 255},
 		OnStartup:         app.startup,
 		OnShutdown:        app.shutdown,
-		HideWindowOnClose: hideOnClose,
+		HideWindowOnClose: false,
+		OnBeforeClose: func(ctx context.Context) bool {
+			if app.ShouldCloseToTray() {
+				runtime.WindowHide(ctx)
+				return true
+			}
+			return false
+		},
 		Bind: []interface{}{
 			app,
 		},

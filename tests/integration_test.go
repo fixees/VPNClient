@@ -60,7 +60,7 @@ func TestConnectPipeline(t *testing.T) {
 		t.Fatalf("Build: %v", err)
 	}
 
-	bin := filepath.Join(tmp, "resources", "core", "mihomo.exe")
+	bin := filepath.Join(tmp, "data", "core", "mihomo.exe")
 	if err := os.MkdirAll(filepath.Dir(bin), 0o755); err != nil {
 		t.Fatal(err)
 	}

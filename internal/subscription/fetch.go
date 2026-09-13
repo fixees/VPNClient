@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"myinternetvpn/client/internal/defaults"
 	"myinternetvpn/client/internal/parse"
 	"myinternetvpn/client/internal/profiles"
 )
@@ -31,7 +32,7 @@ type Fetcher struct {
 func NewFetcher() *Fetcher {
 	return &Fetcher{
 		HTTPClient: &http.Client{Timeout: 45 * time.Second},
-		UserAgent:  "MyInternetVPN/2.0",
+		UserAgent:  defaults.UserAgent,
 	}
 }
 

@@ -1,6 +1,6 @@
 # MyInternetVPN Client
 
-Windows 10/11 desktop client for [myinternetvpn.com](https://myinternetvpn.com).
+Windows 10/11 desktop VPN client (Go + Wails + mihomo).
 
 **Stack:** Go + [Wails](https://wails.io) · **Core:** [mihomo](https://github.com/MetaCubeX/mihomo) (Clash Meta)
 
@@ -23,7 +23,7 @@ app.go / main.go     Wails app + bindings
 internal/            backend packages
 tests/               black-box + integration tests
 frontend/            Vite UI
-resources/core/      mihomo.exe (download via script)
+resources/core/      mihomo + geo (embedded into exe at build)
 scripts/             build / package helpers
 .github/workflows/   CI for main & dev
 ```
@@ -47,14 +47,14 @@ scripts/             build / package helpers
 
 > Important: do **not** run plain `go build`. Wails needs:
 > `go build -tags "desktop,production" -ldflags "-w -s -H windowsgui"`
-> (or just `wails build` / `.\scripts\build.ps1`).
+> (or just `.\scripts\build.ps1`). Release zip contains a **single** `.exe` — mihomo/geo are embedded.
 
-Configure auto-update in `%APPDATA%\MyInternetVPN\settings.json`:
+Configure auto-update (defaults already point to [fixees/VPNClient](https://github.com/fixees/VPNClient)):
 
 ```json
 {
-  "updateOwner": "your-org",
-  "updateRepo": "your-client-repo",
+  "updateOwner": "fixees",
+  "updateRepo": "VPNClient",
   "updateTag": "latest-main"
 }
 ```
@@ -63,7 +63,8 @@ Data: `%APPDATA%\MyInternetVPN\` (`profiles.json`, `settings.json`, `core/`, `up
 
 ## Backend capabilities
 
-- TUN with Admin/UAC check + relaunch elevation
+- Always runs elevated (manifest `requireAdministrator` + startup check)
+- Single-instance guard (second launch activates existing window)
 - System proxy when TUN is off
 - Kill switch + DNS leak guard (Windows firewall rules)
 - Auto-reconnect health monitor
@@ -116,6 +117,6 @@ Workflow: [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
 
 ## Roadmap
 
-- Auth / subscription sync with myinternetvpn.com and Telegram bot
+- Auth / account integration and Telegram bot
 - System tray, autostart, kill switch
 - Import Clash / Clash Meta subscription URLs

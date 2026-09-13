@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"syscall"
 	"unsafe"
+
+	"myinternetvpn/client/internal/defaults"
 )
 
-const singleInstanceMutex = "Local\\MyInternetVPN_SingleInstance"
+// Global mutex so elevated / non-elevated launches still collide correctly.
+const singleInstanceMutex = defaults.MutexName
 
 var singleInstanceHandle syscall.Handle
 
@@ -30,7 +33,7 @@ func AcquireSingleInstance() (bool, error) {
 		return true, fmt.Errorf("CreateMutex failed")
 	}
 	errno, _, _ := getLastError.Call()
-	const errorAlreadyExists = 183
+	const errorAlreadyExists = 183 // ERROR_ALREADY_EXISTS
 	if errno == errorAlreadyExists {
 		_, _, _ = kernel32.NewProc("CloseHandle").Call(handle)
 		return false, nil

@@ -2,12 +2,18 @@
 
 package winutil
 
-import "fmt"
+import (
+	"fmt"
+	"os/exec"
+	"strings"
+
+	"myinternetvpn/client/internal/defaults"
+)
 
 const (
-	killSwitchRuleBlock = "MyInternetVPN_KillSwitch_BlockAll"
-	killSwitchRuleAllow = "MyInternetVPN_KillSwitch_AllowVPN"
-	dnsLeakRule         = "MyInternetVPN_DNSLeak_Block53"
+	killSwitchRuleBlock = defaults.KillSwitchBlockRule
+	killSwitchRuleAllow = defaults.KillSwitchAllowRule
+	dnsLeakRule         = defaults.DNSLeakRule
 )
 
 // KillSwitch uses Windows Filtering via netsh advfirewall rules.
@@ -20,10 +26,24 @@ func NewKillSwitch() *KillSwitch { return &KillSwitch{} }
 
 func (k *KillSwitch) Active() bool { return k.active }
 
-// Enable blocks outbound traffic except the VPN interface (by name when provided).
+// Enable blocks outbound traffic except the VPN interface (required).
 func (k *KillSwitch) Enable(vpnInterface string) error {
+	vpnInterface = strings.TrimSpace(vpnInterface)
+	if vpnInterface == "" {
+		return fmt.Errorf("kill switch requires VPN interface name")
+	}
 	_ = k.Disable()
-	// Block all outbound first.
+	// Allow VPN interface first, then block the rest — avoids a total blackout window.
+	if err := runNetsh("advfirewall", "firewall", "add", "rule",
+		"name="+killSwitchRuleAllow,
+		"dir=out",
+		"action=allow",
+		"enable=yes",
+		"profile=any",
+		"interface="+vpnInterface,
+	); err != nil {
+		return err
+	}
 	if err := runNetsh("advfirewall", "firewall", "add", "rule",
 		"name="+killSwitchRuleBlock,
 		"dir=out",
@@ -31,20 +51,8 @@ func (k *KillSwitch) Enable(vpnInterface string) error {
 		"enable=yes",
 		"profile=any",
 	); err != nil {
+		_ = k.Disable()
 		return err
-	}
-	if vpnInterface != "" {
-		if err := runNetsh("advfirewall", "firewall", "add", "rule",
-			"name="+killSwitchRuleAllow,
-			"dir=out",
-			"action=allow",
-			"enable=yes",
-			"profile=any",
-			"interface="+vpnInterface,
-		); err != nil {
-			_ = k.Disable()
-			return err
-		}
 	}
 	k.active = true
 	return nil
@@ -101,5 +109,14 @@ func (d *DNSLeakGuard) Disable() error {
 	_ = runNetsh("advfirewall", "firewall", "delete", "rule", "name="+dnsLeakRule)
 	_ = runNetsh("advfirewall", "firewall", "delete", "rule", "name="+dnsLeakRule+"_TCP")
 	d.active = false
+	return nil
+}
+
+func runNetsh(args ...string) error {
+	cmd := exec.Command("netsh", args...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("netsh %s: %v (%s)", strings.Join(args, " "), err, strings.TrimSpace(string(out)))
+	}
 	return nil
 }

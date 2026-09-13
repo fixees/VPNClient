@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"myinternetvpn/client/internal/defaults"
 )
 
 // Checker looks for a newer Windows package on a GitHub Release tag (e.g. latest-main).
@@ -40,7 +42,7 @@ type AvailableUpdate struct {
 
 func NewGitHub(owner, repo, tag string) *Checker {
 	if tag == "" {
-		tag = "latest-main"
+		tag = defaults.UpdateTag
 	}
 	return &Checker{
 		Owner: owner,
@@ -49,7 +51,7 @@ func NewGitHub(owner, repo, tag string) *Checker {
 		HTTPClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
-		UserAgent: "MyInternetVPN-Updater",
+		UserAgent: defaults.UpdaterUA,
 	}
 }
 
@@ -87,7 +89,7 @@ func (c *Checker) FindWindowsZip(rel Release) (ReleaseAsset, error) {
 		if strings.Contains(name, "windows") && strings.HasSuffix(name, ".zip") {
 			return a, nil
 		}
-		if strings.HasPrefix(name, "myinternetvpn-") && strings.HasSuffix(name, ".zip") {
+		if strings.HasPrefix(name, strings.ToLower(defaults.ProductName)+"-") && strings.HasSuffix(name, ".zip") {
 			return a, nil
 		}
 	}

@@ -5,8 +5,6 @@ package winutil
 import (
 	"fmt"
 	"os"
-	"os/exec"
-	"strings"
 	"syscall"
 	"unsafe"
 
@@ -51,7 +49,11 @@ func RelaunchAsAdmin(args ...string) error {
 	if err != nil {
 		return err
 	}
-	argStr := strings.Join(args, " ")
+	cwdDir, err := os.Getwd()
+	if err != nil {
+		cwdDir = ""
+	}
+	argStr := joinArgs(args)
 	var params *uint16
 	if argStr != "" {
 		params, err = syscall.UTF16PtrFromString(argStr)
@@ -59,9 +61,22 @@ func RelaunchAsAdmin(args ...string) error {
 			return err
 		}
 	}
-	cwd, _ := syscall.UTF16PtrFromString("")
-	var show int32 = 1
-	return windows.ShellExecute(0, verb, exePtr, params, cwd, show)
+	cwd, _ := syscall.UTF16PtrFromString(cwdDir)
+	const swShownormal = 1
+	return windows.ShellExecute(0, verb, exePtr, params, cwd, swShownormal)
+}
+
+// EnsureAdmin exits after launching an elevated copy when the process is not elevated.
+// Returns true when the current process may continue as administrator.
+func EnsureAdmin() (bool, error) {
+	if IsAdmin() {
+		return true, nil
+	}
+	args := os.Args[1:]
+	if err := RelaunchAsAdmin(args...); err != nil {
+		return false, fmt.Errorf("%w: %v", ErrNeedAdmin, err)
+	}
+	return false, nil
 }
 
 // RequireAdminForTUN returns ErrNeedAdmin when TUN is requested without elevation.
@@ -75,11 +90,47 @@ func RequireAdminForTUN(tunEnabled bool) error {
 	return fmt.Errorf("%w: TUN mode requires elevation", ErrNeedAdmin)
 }
 
-func runNetsh(args ...string) error {
-	cmd := exec.Command("netsh", args...)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("netsh %s: %v (%s)", strings.Join(args, " "), err, strings.TrimSpace(string(out)))
+func joinArgs(args []string) string {
+	if len(args) == 0 {
+		return ""
 	}
-	return nil
+	out := make([]string, 0, len(args))
+	for _, a := range args {
+		if a == "" {
+			continue
+		}
+		if needsQuote(a) {
+			out = append(out, `"`+a+`"`)
+			continue
+		}
+		out = append(out, a)
+	}
+	return joinSpace(out)
+}
+
+func needsQuote(s string) bool {
+	for _, r := range s {
+		if r == ' ' || r == '\t' {
+			return true
+		}
+	}
+	return false
+}
+
+func joinSpace(parts []string) string {
+	if len(parts) == 0 {
+		return ""
+	}
+	n := len(parts) - 1
+	for _, p := range parts {
+		n += len(p)
+	}
+	b := make([]byte, 0, n)
+	for i, p := range parts {
+		if i > 0 {
+			b = append(b, ' ')
+		}
+		b = append(b, p...)
+	}
+	return string(b)
 }

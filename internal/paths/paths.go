@@ -4,9 +4,11 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+
+	"myinternetvpn/client/internal/defaults"
 )
 
-// Resolver locates app data and bundled resources.
+// Resolver locates app data and runtime core files.
 type Resolver interface {
 	DataDir() string
 	ProfilesFile() string
@@ -18,36 +20,18 @@ type Resolver interface {
 }
 
 type defaultResolver struct {
-	dataDir     string
-	resourceDir string
+	dataDir string
 }
 
 // New returns a Windows-oriented path resolver.
+// Core binary lives under DataDir/core after embedded resources are extracted.
 func New() Resolver {
 	appData, err := os.UserConfigDir()
 	if err != nil || appData == "" {
 		appData = "."
 	}
-	dataDir := filepath.Join(appData, "MyInternetVPN")
-
-	exe, err := os.Executable()
-	if err != nil {
-		exe = "."
-	}
-	resourceDir := filepath.Join(filepath.Dir(exe), "resources")
-	// Dev fallback: resources next to module root.
-	if _, err := os.Stat(resourceDir); err != nil {
-		if wd, err := os.Getwd(); err == nil {
-			candidate := filepath.Join(wd, "resources")
-			if _, err := os.Stat(candidate); err == nil {
-				resourceDir = candidate
-			}
-		}
-	}
-
 	return &defaultResolver{
-		dataDir:     dataDir,
-		resourceDir: resourceDir,
+		dataDir: filepath.Join(appData, defaults.DataDirName),
 	}
 }
 
@@ -62,7 +46,7 @@ func (r *defaultResolver) CoreBinary() string {
 	if runtime.GOOS == "windows" {
 		name = "mihomo.exe"
 	}
-	return filepath.Join(r.resourceDir, "core", name)
+	return filepath.Join(r.CoreWorkDir(), name)
 }
 
 func (r *defaultResolver) Ensure() error {
@@ -74,7 +58,7 @@ func (r *defaultResolver) Ensure() error {
 	return nil
 }
 
-// NewWithRoots is used by tests.
-func NewWithRoots(dataDir, resourceDir string) Resolver {
-	return &defaultResolver{dataDir: dataDir, resourceDir: resourceDir}
+// NewWithRoots is used by tests (dataDir only; core is always under dataDir/core).
+func NewWithRoots(dataDir, _ string) Resolver {
+	return &defaultResolver{dataDir: dataDir}
 }

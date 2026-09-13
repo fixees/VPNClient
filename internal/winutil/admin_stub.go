@@ -2,17 +2,18 @@
 
 package winutil
 
-import "fmt"
-
-func IsAdmin() bool { return false }
+func IsAdmin() bool { return true }
 
 func RelaunchAsAdmin(args ...string) error {
 	return ErrNotWindows
 }
 
-func RequireAdminForTUN(tunEnabled bool) error {
-	if tunEnabled {
-		return fmt.Errorf("%w: TUN unsupported on this OS build", ErrNotWindows)
-	}
-	return nil
-}
+func EnsureAdmin() (bool, error) { return true, nil }
+
+func RequireAdminForTUN(tunEnabled bool) error { return nil }
+
+func MessageBox(title, text string, isError bool) {}
+
+func ActivateMainWindow(windowTitle string) bool { return false }
+
+func HandleSecondInstance(windowTitle string) {}

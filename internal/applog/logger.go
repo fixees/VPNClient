@@ -1,6 +1,7 @@
 package applog
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -53,6 +54,46 @@ func (l *Logger) write(level, format string, args ...any) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.std.Printf("%s [%s] %s", time.Now().Format(time.RFC3339), level, msg)
+}
+
+// Tail reads the last maxLines from the log file without loading huge heads fully into memory beyond a capped window.
+func Tail(path string, maxLines int) (string, error) {
+	if maxLines <= 0 {
+		maxLines = 100
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	st, err := f.Stat()
+	if err != nil {
+		return "", err
+	}
+	const maxWindow = 512 << 10 // 512 KiB
+	size := st.Size()
+	start := int64(0)
+	if size > maxWindow {
+		start = size - maxWindow
+	}
+	if _, err := f.Seek(start, io.SeekStart); err != nil {
+		return "", err
+	}
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return "", err
+	}
+	if start > 0 {
+		if i := bytes.IndexByte(data, '\n'); i >= 0 && i+1 < len(data) {
+			data = data[i+1:]
+		}
+	}
+	lines := strings.Split(string(data), "\n")
+	if len(lines) > maxLines {
+		lines = lines[len(lines)-maxLines:]
+	}
+	return strings.Join(lines, "\n"), nil
 }
 
 // Redact removes common secret patterns from log lines.

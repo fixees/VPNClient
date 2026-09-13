@@ -4,8 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
+
+	"myinternetvpn/client/internal/defaults"
 )
 
 // ProxyNode is a Clash/mihomo proxy definition (passthrough map).
@@ -44,68 +47,113 @@ func (q Quota) Expired() bool {
 
 // Profile stores a named set of proxies for a user subscription/key.
 type Profile struct {
-	Name                 string      `json:"name"`
-	Note                 string      `json:"note,omitempty"`
-	Proxies              []ProxyNode `json:"proxies"`
-	SubscriptionURL      string      `json:"subscriptionURL,omitempty"`
-	Quota                Quota       `json:"quota,omitempty"`
-	LastSyncAt           string      `json:"lastSyncAt,omitempty"` // RFC3339
-	UpdateIntervalHours  int         `json:"updateIntervalHours,omitempty"`
-	ProviderTitle        string      `json:"providerTitle,omitempty"`
+	Name                string      `json:"name"`
+	Note                string      `json:"note,omitempty"`
+	Proxies             []ProxyNode `json:"proxies"`
+	SubscriptionURL     string      `json:"subscriptionURL,omitempty"`
+	Quota               Quota       `json:"quota,omitempty"`
+	LastSyncAt          string      `json:"lastSyncAt,omitempty"` // RFC3339
+	UpdateIntervalHours int         `json:"updateIntervalHours,omitempty"`
+	ProviderTitle       string      `json:"providerTitle,omitempty"`
 }
 
 // Settings are persisted client preferences.
 type Settings struct {
-	ActiveProfile             string `json:"activeProfile"`
-	MixedPort                 int    `json:"mixedPort"`
-	ControllerURL             string `json:"controllerURL"`
-	Secret                    string `json:"secret"`
-	Mode                      string `json:"mode"` // rule | global | direct
-	TUN                       bool   `json:"tun"`
-	UseSystemProxy            bool   `json:"useSystemProxy"` // when TUN is off
-	LogLevel                  string `json:"logLevel"`
-	KillSwitch                bool   `json:"killSwitch"`
-	DNSLeakProtection         bool   `json:"dnsLeakProtection"`
-	AutoReconnect             bool   `json:"autoReconnect"`
-	HealthIntervalSec         int    `json:"healthIntervalSec"`
-	VPNInterface              string `json:"vpnInterface"`
-	UpdateOwner               string `json:"updateOwner"`
-	UpdateRepo                string `json:"updateRepo"`
-	UpdateTag                 string `json:"updateTag"`
-	RequireCoreHash           bool   `json:"requireCoreHash"`
-	AutoUpdateSubscriptions   bool   `json:"autoUpdateSubscriptions"`
-	SubscriptionIntervalMin   int    `json:"subscriptionIntervalMin"`
-	Autostart                 bool   `json:"autostart"`
-	CloseToTray               bool   `json:"closeToTray"`
-	ProxyGroup                string `json:"proxyGroup"`
-	SelectedNode              string `json:"selectedNode"`
+	ActiveProfile           string `json:"activeProfile"`
+	MixedPort               int    `json:"mixedPort"`
+	ControllerURL           string `json:"controllerURL"`
+	Secret                  string `json:"secret"`
+	Mode                    string `json:"mode"` // rule | global | direct
+	TUN                     bool   `json:"tun"`
+	TUNStack                string `json:"tunStack"` // system | gvisor | mixed
+	UseSystemProxy          bool   `json:"useSystemProxy"`
+	AllowLAN                bool   `json:"allowLan"`
+	IPv6                    bool   `json:"ipv6"`
+	LogLevel                string `json:"logLevel"`
+	KillSwitch              bool   `json:"killSwitch"`
+	DNSLeakProtection       bool   `json:"dnsLeakProtection"`
+	AutoReconnect           bool   `json:"autoReconnect"`
+	HealthIntervalSec       int    `json:"healthIntervalSec"`
+	VPNInterface            string `json:"vpnInterface"`
+	BypassLAN               bool   `json:"bypassLan"`
+	BypassGEOIP             string `json:"bypassGeoip"`     // e.g. CN; empty = off
+	DNSEnhancedMode         string `json:"dnsEnhancedMode"` // fake-ip | redir-host
+	DNSNameservers          string `json:"dnsNameservers"`  // comma/space separated
+	DNSFallbacks            string `json:"dnsFallbacks"`
+	DNSFakeIPRange          string `json:"dnsFakeIpRange"`
+	Sniffer                 bool   `json:"sniffer"`
+	TCPConcurrent           bool   `json:"tcpConcurrent"`
+	UnifiedDelay            bool   `json:"unifiedDelay"`
+	WARPEnabled             bool   `json:"warpEnabled"`
+	WARPPrivateKey          string `json:"warpPrivateKey"`
+	WARPLocalAddress        string `json:"warpLocalAddress"`
+	WARPEndpoint            string `json:"warpEndpoint"`
+	WARPPublicKey           string `json:"warpPublicKey"`
+	UpdateOwner             string `json:"updateOwner"`
+	UpdateRepo              string `json:"updateRepo"`
+	UpdateTag               string `json:"updateTag"`
+	RequireCoreHash         bool   `json:"requireCoreHash"`
+	AutoUpdateSubscriptions bool   `json:"autoUpdateSubscriptions"`
+	SubscriptionIntervalMin int    `json:"subscriptionIntervalMin"`
+	Autostart               bool   `json:"autostart"`
+	CloseToTray             bool   `json:"closeToTray"`
+	ProxyGroup              string `json:"proxyGroup"`
+	SelectedNode            string `json:"selectedNode"`
 }
 
 func DefaultSettings() *Settings {
 	return &Settings{
-		MixedPort:               7890,
-		ControllerURL:           "127.0.0.1:9090",
-		Secret:                  "myinternetvpn-local",
-		Mode:                    "rule",
+		MixedPort:               defaults.MixedPort,
+		ControllerURL:           defaults.ControllerAddr,
+		Secret:                  defaults.NewLocalSecret(),
+		Mode:                    defaults.DefaultMode,
 		TUN:                     true,
+		TUNStack:                defaults.DefaultTUNStack,
 		UseSystemProxy:          true,
-		LogLevel:                "info",
+		AllowLAN:                false,
+		IPv6:                    false,
+		LogLevel:                defaults.DefaultLogLevel,
 		KillSwitch:              false,
 		DNSLeakProtection:       false,
 		AutoReconnect:           true,
-		HealthIntervalSec:       30,
-		VPNInterface:            "Meta",
-		UpdateOwner:             "",
-		UpdateRepo:              "",
-		UpdateTag:               "latest-main",
+		HealthIntervalSec:       int(defaults.DefaultHealthInterval / time.Second),
+		VPNInterface:            defaults.DefaultVPNIface,
+		BypassLAN:               true,
+		BypassGEOIP:             defaults.DefaultBypassGEOIP,
+		DNSEnhancedMode:         defaults.DNSEnhancedMode,
+		DNSNameservers:          stringsJoin(defaults.DNSNameservers),
+		DNSFallbacks:            stringsJoin(defaults.DNSFallbacks),
+		DNSFakeIPRange:          defaults.DNSFakeIPRange,
+		Sniffer:                 true,
+		TCPConcurrent:           true,
+		UnifiedDelay:            true,
+		WARPEnabled:             false,
+		WARPPrivateKey:          "",
+		WARPLocalAddress:        defaults.WARPLocalAddress,
+		WARPEndpoint:            defaults.WARPEndpoint,
+		WARPPublicKey:           defaults.WARPPublicKey,
+		UpdateOwner:             defaults.UpdateOwner,
+		UpdateRepo:              defaults.UpdateRepo,
+		UpdateTag:               defaults.UpdateTag,
 		RequireCoreHash:         false,
 		AutoUpdateSubscriptions: true,
-		SubscriptionIntervalMin: 360,
+		SubscriptionIntervalMin: defaults.DefaultSubIntervalMin,
 		Autostart:               false,
 		CloseToTray:             true,
-		ProxyGroup:              "PROXY",
+		ProxyGroup:              defaults.ProxyGroup,
 		SelectedNode:            "",
 	}
+}
+
+func stringsJoin(items []string) string {
+	if len(items) == 0 {
+		return ""
+	}
+	out := items[0]
+	for i := 1; i < len(items); i++ {
+		out += ", " + items[i]
+	}
+	return out
 }
 
 // Store is a thread-safe JSON profile repository.
@@ -215,16 +263,116 @@ func LoadSettings(path string) (*Settings, error) {
 		return nil, err
 	}
 	cfg := DefaultSettings()
+	// Keep a generated secret only if file omits it.
+	generatedSecret := cfg.Secret
+	cfg.Secret = ""
 	if err := json.Unmarshal(data, cfg); err != nil {
 		return nil, err
 	}
+	NormalizeSettings(cfg, generatedSecret)
 	return cfg, nil
 }
 
 func SaveSettings(path string, cfg *Settings) error {
+	NormalizeSettings(cfg, "")
 	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return err
 	}
 	return os.WriteFile(path, data, 0o600)
+}
+
+// NormalizeSettings fills empty/zero fields from defaults.
+func NormalizeSettings(cfg *Settings, fallbackSecret string) {
+	if cfg == nil {
+		return
+	}
+	if cfg.MixedPort <= 0 {
+		cfg.MixedPort = defaults.MixedPort
+	}
+	if cfg.ControllerURL == "" {
+		cfg.ControllerURL = defaults.ControllerAddr
+	}
+	if cfg.Secret == "" {
+		if fallbackSecret != "" {
+			cfg.Secret = fallbackSecret
+		} else {
+			cfg.Secret = defaults.NewLocalSecret()
+		}
+	}
+	if cfg.Mode == "" {
+		cfg.Mode = defaults.DefaultMode
+	}
+	if cfg.LogLevel == "" {
+		cfg.LogLevel = defaults.DefaultLogLevel
+	}
+	switch strings.ToLower(cfg.TUNStack) {
+	case "system", "gvisor", "mixed":
+		cfg.TUNStack = strings.ToLower(cfg.TUNStack)
+	default:
+		cfg.TUNStack = defaults.DefaultTUNStack
+	}
+	switch strings.ToLower(cfg.DNSEnhancedMode) {
+	case "fake-ip", "redir-host":
+		cfg.DNSEnhancedMode = strings.ToLower(cfg.DNSEnhancedMode)
+	default:
+		cfg.DNSEnhancedMode = defaults.DNSEnhancedMode
+	}
+	if cfg.DNSNameservers == "" {
+		cfg.DNSNameservers = stringsJoin(defaults.DNSNameservers)
+	}
+	if cfg.DNSFallbacks == "" {
+		cfg.DNSFallbacks = stringsJoin(defaults.DNSFallbacks)
+	}
+	if cfg.DNSFakeIPRange == "" {
+		cfg.DNSFakeIPRange = defaults.DNSFakeIPRange
+	}
+	if cfg.HealthIntervalSec <= 0 {
+		cfg.HealthIntervalSec = int(defaults.DefaultHealthInterval / time.Second)
+	}
+	if cfg.VPNInterface == "" {
+		cfg.VPNInterface = defaults.DefaultVPNIface
+	}
+	if cfg.UpdateTag == "" {
+		cfg.UpdateTag = defaults.UpdateTag
+	}
+	if cfg.UpdateOwner == "" {
+		cfg.UpdateOwner = defaults.UpdateOwner
+	}
+	if cfg.UpdateRepo == "" {
+		cfg.UpdateRepo = defaults.UpdateRepo
+	}
+	if cfg.SubscriptionIntervalMin <= 0 {
+		cfg.SubscriptionIntervalMin = defaults.DefaultSubIntervalMin
+	}
+	if cfg.ProxyGroup == "" {
+		cfg.ProxyGroup = defaults.ProxyGroup
+	}
+	if cfg.WARPEndpoint == "" {
+		cfg.WARPEndpoint = defaults.WARPEndpoint
+	}
+	if cfg.WARPPublicKey == "" {
+		cfg.WARPPublicKey = defaults.WARPPublicKey
+	}
+	if cfg.WARPLocalAddress == "" {
+		cfg.WARPLocalAddress = defaults.WARPLocalAddress
+	}
+	cfg.BypassGEOIP = strings.ToUpper(strings.TrimSpace(cfg.BypassGEOIP))
+}
+
+// SplitList parses a comma/space/newline separated list.
+func SplitList(raw string) []string {
+	raw = strings.ReplaceAll(raw, "\n", ",")
+	raw = strings.ReplaceAll(raw, ";", ",")
+	parts := strings.FieldsFunc(raw, func(r rune) bool {
+		return r == ',' || r == ' ' || r == '\t'
+	})
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }

@@ -12,8 +12,10 @@ import (
 
 	"myinternetvpn/client/internal/api"
 	"myinternetvpn/client/internal/applog"
+	"myinternetvpn/client/internal/bundle"
 	"myinternetvpn/client/internal/config"
 	"myinternetvpn/client/internal/core"
+	"myinternetvpn/client/internal/defaults"
 	"myinternetvpn/client/internal/geo"
 	"myinternetvpn/client/internal/health"
 	"myinternetvpn/client/internal/integrity"
@@ -63,15 +65,29 @@ func (a *App) startup(ctx context.Context) {
 
 	if lg, err := applog.Open(filepath.Join(a.paths.DataDir(), "client.log")); err == nil {
 		a.log = lg
-		a.log.Info("starting MyInternetVPN %s", version)
+		a.log.Info("starting %s %s", defaults.ProductName, version)
+	}
+
+	// Unpack embedded mihomo + geo into AppData (single-exe distribution).
+	if err := a.ensureBundledCore(); err != nil {
+		if a.log != nil {
+			a.log.Error("extract bundled core: %v", err)
+		}
+		winutil.MessageBox(defaults.WindowTitle, "Не удалось подготовить ядро VPN.\nПереустановите приложение.\n\n"+err.Error(), true)
+	} else if a.log != nil {
+		a.log.Info("core ready: %s", a.paths.CoreBinary())
 	}
 
 	a.store = profiles.NewStore(a.paths.ProfilesFile())
 	_ = a.store.Load()
 
 	a.settings = profiles.DefaultSettings()
-	if loaded, err := profiles.LoadSettings(a.paths.SettingsFile()); err == nil {
+	settingsPath := a.paths.SettingsFile()
+	if loaded, err := profiles.LoadSettings(settingsPath); err == nil {
 		a.settings = loaded
+	} else {
+		// Persist generated local secret on first run.
+		_ = profiles.SaveSettings(settingsPath, a.settings)
 	}
 	_ = a.applyAutostartSetting()
 
@@ -131,40 +147,43 @@ func (a *App) shutdown(ctx context.Context) {
 
 // GetStatus returns connection and profile summary for the UI.
 func (a *App) GetStatus() map[string]any {
+	a.mu.Lock()
+	settings := a.settings
+	manager := a.manager
+	apiClient := a.api
+	store := a.store
+	a.mu.Unlock()
+
 	state := "disconnected"
 	coreVersion := ""
-	mode := a.settings.Mode
+	mode := ""
 	up, down := int64(0), int64(0)
 	totalUp, totalDown := int64(0), int64(0)
+	if settings != nil {
+		mode = settings.Mode
+	}
 
-	if a.manager != nil && a.manager.Running() {
+	if manager != nil && apiClient != nil && manager.Running() {
 		state = "connected"
-		if v, err := a.api.Version(); err == nil {
-			coreVersion = v.Version
+		live := apiClient.Live(context.Background())
+		coreVersion = live.Version
+		if live.Mode != "" {
+			mode = live.Mode
 		}
-		if m, err := a.api.Mode(); err == nil && m != "" {
-			mode = m
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), 800*time.Millisecond)
-		if snap, err := a.api.TrafficOnce(ctx); err == nil {
-			up, down = snap.Up, snap.Down
-		}
-		cancel()
-		if conn, err := a.api.Connections(); err == nil {
-			totalUp, totalDown = conn.UploadTotal, conn.DownloadTotal
-		}
+		up, down = live.Up, live.Down
+		totalUp, totalDown = live.TotalUp, live.TotalDown
 	}
 
 	active := ""
-	list, _ := a.store.List()
+	list, _ := store.List()
 	var quota map[string]any
 	subURL := ""
 	lastSync := ""
 	expireUnix := int64(0)
-	if a.settings != nil {
-		active = a.settings.ActiveProfile
+	if settings != nil {
+		active = settings.ActiveProfile
 		if active != "" {
-			if p, err := a.store.Get(active); err == nil {
+			if p, err := store.Get(active); err == nil {
 				subURL = p.SubscriptionURL
 				lastSync = p.LastSyncAt
 				expireUnix = p.Quota.ExpireUnix
@@ -181,36 +200,45 @@ func (a *App) GetStatus() map[string]any {
 		}
 	}
 
-	return map[string]any{
-		"state":                   state,
-		"coreVersion":             coreVersion,
-		"activeProfile":           active,
-		"profileCount":            len(list),
-		"mixedPort":               a.settings.MixedPort,
-		"mode":                    mode,
-		"tun":                     a.settings.TUN,
-		"useSystemProxy":          a.settings.UseSystemProxy,
-		"killSwitch":              a.settings.KillSwitch,
-		"dnsLeakProtection":       a.settings.DNSLeakProtection,
-		"autoReconnect":           a.settings.AutoReconnect,
-		"autoUpdateSubscriptions": a.settings.AutoUpdateSubscriptions,
-		"isAdmin":                 winutil.IsAdmin(),
-		"speedUp":                 up,
-		"speedDown":               down,
-		"totalUp":                 totalUp,
-		"totalDown":               totalDown,
-		"subscriptionURL":         subURL,
-		"subscriptionQuota":       quota,
-		"subscriptionLastSync":    lastSync,
-		"subscriptionExpireUnix":  expireUnix,
-		"selectedNode":            a.settings.SelectedNode,
-		"proxyGroup":              a.settings.ProxyGroup,
-		"autostart":               a.settings.Autostart,
-		"closeToTray":             a.settings.CloseToTray,
-		"product":                 "MyInternetVPN",
-		"site":                    "https://myinternetvpn.com",
-		"appVersion":              version,
+	out := map[string]any{
+		"state":                  state,
+		"coreVersion":            coreVersion,
+		"activeProfile":          active,
+		"profileCount":           len(list),
+		"speedUp":                up,
+		"speedDown":              down,
+		"totalUp":                totalUp,
+		"totalDown":              totalDown,
+		"subscriptionURL":        subURL,
+		"subscriptionQuota":      quota,
+		"subscriptionLastSync":   lastSync,
+		"subscriptionExpireUnix": expireUnix,
+		"isAdmin":                winutil.IsAdmin(),
+		"product":                defaults.ProductName,
+		"appVersion":             version,
 	}
+	if settings != nil {
+		out["mixedPort"] = settings.MixedPort
+		out["mode"] = mode
+		out["tun"] = settings.TUN
+		out["useSystemProxy"] = settings.UseSystemProxy
+		out["killSwitch"] = settings.KillSwitch
+		out["dnsLeakProtection"] = settings.DNSLeakProtection
+		out["autoReconnect"] = settings.AutoReconnect
+		out["autoUpdateSubscriptions"] = settings.AutoUpdateSubscriptions
+		out["selectedNode"] = settings.SelectedNode
+		out["proxyGroup"] = a.proxyGroup()
+		out["autostart"] = settings.Autostart
+		out["closeToTray"] = settings.CloseToTray
+	}
+	return out
+}
+
+func (a *App) proxyGroup() string {
+	if a.settings != nil && strings.TrimSpace(a.settings.ProxyGroup) != "" {
+		return a.settings.ProxyGroup
+	}
+	return defaults.ProxyGroup
 }
 
 func (a *App) GetSettings() *profiles.Settings {
@@ -218,33 +246,94 @@ func (a *App) GetSettings() *profiles.Settings {
 }
 
 func (a *App) SaveSettings(s profiles.Settings) error {
+	profiles.NormalizeSettings(&s, "")
 	if s.Mode == "" {
-		s.Mode = "rule"
+		s.Mode = defaults.DefaultMode
 	}
 	switch strings.ToLower(s.Mode) {
 	case "rule", "global", "direct":
 	default:
 		return fmt.Errorf("invalid mode %q", s.Mode)
 	}
-	if s.SubscriptionIntervalMin <= 0 {
-		s.SubscriptionIntervalMin = 360
+	if s.MixedPort < 1024 || s.MixedPort > 65535 {
+		return fmt.Errorf("mixed port must be 1024–65535")
 	}
+	if s.WARPEnabled && strings.TrimSpace(s.WARPPrivateKey) == "" {
+		return fmt.Errorf("для WARP нужен WireGuard private key")
+	}
+
+	a.mu.Lock()
+	prev := a.settings
 	a.settings = &s
-	if a.manager != nil && a.manager.Running() {
-		_ = a.api.SetMode(s.Mode)
+	if a.api != nil && (prev == nil || prev.ControllerURL != s.ControllerURL || prev.Secret != s.Secret) {
+		a.api.UpdateEndpoint(s.ControllerURL, s.Secret)
 	}
-	if a.scheduler != nil {
-		a.scheduler.SetInterval(time.Duration(s.SubscriptionIntervalMin) * time.Minute)
+	apiClient := a.api
+	manager := a.manager
+	scheduler := a.scheduler
+	healthMon := a.health
+	wasRunning := manager != nil && manager.Running()
+	reconnect := wasRunning && coreSettingsChanged(prev, &s)
+	a.mu.Unlock()
+
+	if healthMon != nil {
+		healthMon.SetInterval(time.Duration(s.HealthIntervalSec) * time.Second)
+	}
+	if manager != nil && wasRunning && apiClient != nil && !reconnect {
+		_ = apiClient.SetMode(s.Mode)
+	}
+	if scheduler != nil {
+		scheduler.SetInterval(time.Duration(s.SubscriptionIntervalMin) * time.Minute)
 		if s.AutoUpdateSubscriptions {
-			a.scheduler.Start()
+			scheduler.Start()
 		} else {
-			a.scheduler.Stop()
+			scheduler.Stop()
 		}
 	}
 	if err := a.applyAutostartSetting(); err != nil {
 		return err
 	}
-	return profiles.SaveSettings(a.paths.SettingsFile(), a.settings)
+	if err := profiles.SaveSettings(a.paths.SettingsFile(), a.settings); err != nil {
+		return err
+	}
+	if reconnect {
+		_ = a.Disconnect()
+		if err := a.Connect(); err != nil {
+			return fmt.Errorf("настройки сохранены, но переподключение не удалось: %w", err)
+		}
+	}
+	return nil
+}
+
+func coreSettingsChanged(prev, next *profiles.Settings) bool {
+	if prev == nil || next == nil {
+		return false
+	}
+	return prev.TUN != next.TUN ||
+		prev.TUNStack != next.TUNStack ||
+		prev.MixedPort != next.MixedPort ||
+		prev.AllowLAN != next.AllowLAN ||
+		prev.IPv6 != next.IPv6 ||
+		prev.LogLevel != next.LogLevel ||
+		prev.BypassLAN != next.BypassLAN ||
+		prev.BypassGEOIP != next.BypassGEOIP ||
+		prev.DNSEnhancedMode != next.DNSEnhancedMode ||
+		prev.DNSNameservers != next.DNSNameservers ||
+		prev.DNSFallbacks != next.DNSFallbacks ||
+		prev.DNSFakeIPRange != next.DNSFakeIPRange ||
+		prev.Sniffer != next.Sniffer ||
+		prev.TCPConcurrent != next.TCPConcurrent ||
+		prev.UnifiedDelay != next.UnifiedDelay ||
+		prev.WARPEnabled != next.WARPEnabled ||
+		prev.WARPPrivateKey != next.WARPPrivateKey ||
+		prev.WARPLocalAddress != next.WARPLocalAddress ||
+		prev.WARPEndpoint != next.WARPEndpoint ||
+		prev.WARPPublicKey != next.WARPPublicKey ||
+		prev.KillSwitch != next.KillSwitch ||
+		prev.DNSLeakProtection != next.DNSLeakProtection ||
+		prev.UseSystemProxy != next.UseSystemProxy ||
+		prev.ControllerURL != next.ControllerURL ||
+		prev.Secret != next.Secret
 }
 
 func (a *App) applyAutostartSetting() error {
@@ -440,6 +529,17 @@ func (a *App) RelaunchAsAdmin() error {
 	return winutil.RelaunchAsAdmin()
 }
 
+// ensureBundledCore extracts embedded mihomo/geo into AppData when missing or outdated.
+func (a *App) ensureBundledCore() error {
+	if err := bundle.ExtractFS(bundledCore, "resources/core", a.paths.CoreWorkDir()); err != nil {
+		return err
+	}
+	if _, err := os.Stat(a.paths.CoreBinary()); err != nil {
+		return fmt.Errorf("core binary missing after extract: %w", err)
+	}
+	return nil
+}
+
 func (a *App) Connect() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -451,6 +551,22 @@ func (a *App) Connect() error {
 		return err
 	}
 
+	if err := a.ensureBundledCore(); err != nil {
+		return fmt.Errorf("prepare core: %w", err)
+	}
+	// Manager may have been constructed before extract; keep path in sync.
+	if a.manager != nil {
+		a.manager = core.NewManager(core.Options{
+			CorePath:      a.paths.CoreBinary(),
+			WorkDir:       a.paths.CoreWorkDir(),
+			ConfigPath:    a.paths.RuntimeConfig(),
+			ControllerURL: a.settings.ControllerURL,
+			Secret:        a.settings.Secret,
+			MixedPort:     a.settings.MixedPort,
+			API:           a.api,
+		})
+	}
+
 	checked, err := integrity.VerifyBeside(a.paths.CoreBinary())
 	if err != nil {
 		return err
@@ -459,8 +575,7 @@ func (a *App) Connect() error {
 		return fmt.Errorf("mihomo.exe.sha256 is required but missing")
 	}
 
-	resourceRoot := filepath.Dir(filepath.Dir(a.paths.CoreBinary()))
-	if err := geo.Ensure(a.paths.CoreWorkDir(), resourceRoot); err != nil {
+	if err := geo.Ensure(a.paths.CoreWorkDir()); err != nil {
 		// Non-fatal if offline and assets already absent; still try to connect.
 		_ = err
 	}
@@ -469,15 +584,10 @@ func (a *App) Connect() error {
 	if err != nil {
 		return err
 	}
-	doc, err := config.Build(config.BuildInput{
-		Profile:       profile,
-		MixedPort:     a.settings.MixedPort,
-		ControllerURL: a.settings.ControllerURL,
-		Secret:        a.settings.Secret,
-		Mode:          a.settings.Mode,
-		TUN:           a.settings.TUN,
-		LogLevel:      a.settings.LogLevel,
-	})
+	in := config.FromSettings(a.settings)
+	in.Profile = profile
+	in.ProxyGroup = a.proxyGroup()
+	doc, err := config.Build(in)
 	if err != nil {
 		return err
 	}
@@ -515,10 +625,7 @@ func (a *App) Connect() error {
 		a.health.Start()
 	}
 	if a.settings.SelectedNode != "" {
-		group := a.settings.ProxyGroup
-		if group == "" {
-			group = "PROXY"
-		}
+		group := a.proxyGroup()
 		if err := a.api.SelectProxy(group, a.settings.SelectedNode); err != nil {
 			a.log.Warn("restore selected node: %v", err)
 		} else {
@@ -658,16 +765,12 @@ func (a *App) ApplyUpdate(zipPath string) error {
 	return nil
 }
 
-// ListNodes returns selectable proxies from the PROXY group.
+// ListNodes returns selectable proxies from the configured proxy group.
 func (a *App) ListNodes() ([]api.ProxyNodeRuntime, error) {
 	if a.manager == nil || !a.manager.Running() {
 		return []api.ProxyNodeRuntime{}, nil
 	}
-	group := a.settings.ProxyGroup
-	if group == "" {
-		group = "PROXY"
-	}
-	_, nodes, err := a.api.ListSelectableNodes(group)
+	_, nodes, err := a.api.ListSelectableNodes(a.proxyGroup())
 	return nodes, err
 }
 
@@ -676,11 +779,7 @@ func (a *App) CurrentNode() (string, error) {
 	if a.manager == nil || !a.manager.Running() {
 		return a.settings.SelectedNode, nil
 	}
-	group := a.settings.ProxyGroup
-	if group == "" {
-		group = "PROXY"
-	}
-	g, err := a.api.Group(group)
+	g, err := a.api.Group(a.proxyGroup())
 	if err != nil {
 		return a.settings.SelectedNode, err
 	}
@@ -692,10 +791,7 @@ func (a *App) SelectNode(name string) error {
 	if a.manager == nil || !a.manager.Running() {
 		return fmt.Errorf("not connected")
 	}
-	group := a.settings.ProxyGroup
-	if group == "" {
-		group = "PROXY"
-	}
+	group := a.proxyGroup()
 	if err := a.api.SelectProxy(group, name); err != nil {
 		return err
 	}
@@ -711,7 +807,7 @@ func (a *App) TestNodeDelay(name string) (int, error) {
 	if a.manager == nil || !a.manager.Running() {
 		return 0, fmt.Errorf("not connected")
 	}
-	return a.api.TestDelay(name, "", 5000)
+	return a.api.TestDelay(name, "", defaults.URLTestTimeoutMS)
 }
 
 // NodeDelayResult is one URL-test outcome.
@@ -747,7 +843,7 @@ func (a *App) TestAllNodes() ([]NodeDelayResult, error) {
 		go func() {
 			defer wg.Done()
 			for j := range jobs {
-				d, err := a.api.TestDelay(j.name, "", 5000)
+				d, err := a.api.TestDelay(j.name, "", defaults.URLTestTimeoutMS)
 				res := NodeDelayResult{Name: j.name, Delay: d}
 				if err != nil {
 					res.Error = err.Error()
@@ -811,19 +907,15 @@ func (a *App) QuitApp() {
 	}
 }
 
+// ShouldCloseToTray reports whether the window close button should hide instead of quit.
+func (a *App) ShouldCloseToTray() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.settings == nil || a.settings.CloseToTray
+}
+
 // GetLogsTail returns the last N lines of client.log (best-effort).
 func (a *App) GetLogsTail(maxLines int) (string, error) {
-	if maxLines <= 0 {
-		maxLines = 100
-	}
 	path := filepath.Join(a.paths.DataDir(), "client.log")
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	lines := strings.Split(string(data), "\n")
-	if len(lines) > maxLines {
-		lines = lines[len(lines)-maxLines:]
-	}
-	return strings.Join(lines, "\n"), nil
+	return applog.Tail(path, maxLines)
 }

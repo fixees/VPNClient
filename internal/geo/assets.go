@@ -15,9 +15,9 @@ const (
 	DefaultGeoSiteURL = "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geosite.dat"
 )
 
-// Ensure copies or downloads GeoIP/GeoSite databases into workDir.
-// Prefers local files from resourceDir when present.
-func Ensure(workDir, resourceDir string) error {
+// Ensure makes sure GeoIP/GeoSite databases exist in workDir.
+// Prefer already-extracted bundled files; download only if still missing.
+func Ensure(workDir string) error {
 	if err := os.MkdirAll(workDir, 0o755); err != nil {
 		return err
 	}
@@ -33,33 +33,11 @@ func Ensure(workDir, resourceDir string) error {
 		if st, err := os.Stat(dst); err == nil && st.Size() > 0 {
 			continue
 		}
-		src := filepath.Join(resourceDir, "core", p.name)
-		if st, err := os.Stat(src); err == nil && st.Size() > 0 {
-			if err := copyFile(src, dst); err != nil {
-				return err
-			}
-			continue
-		}
 		if err := download(p.url, dst); err != nil {
 			return fmt.Errorf("geo asset %s: %w", p.name, err)
 		}
 	}
 	return nil
-}
-
-func copyFile(src, dst string) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-	_, err = io.Copy(out, in)
-	return err
 }
 
 func download(url, dst string) error {

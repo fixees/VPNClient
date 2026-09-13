@@ -11,8 +11,7 @@ import (
 
 func TestPathsNewWithRoots(t *testing.T) {
 	tmp := t.TempDir()
-	res := filepath.Join(tmp, "resources")
-	r := paths.NewWithRoots(filepath.Join(tmp, "data"), res)
+	r := paths.NewWithRoots(filepath.Join(tmp, "data"), filepath.Join(tmp, "resources"))
 
 	if err := r.Ensure(); err != nil {
 		t.Fatalf("Ensure: %v", err)
@@ -28,7 +27,7 @@ func TestPathsNewWithRoots(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		wantName = "mihomo.exe"
 	}
-	want := filepath.Join(res, "core", wantName)
+	want := filepath.Join(tmp, "data", "core", wantName)
 	if r.CoreBinary() != want {
 		t.Fatalf("core binary = %s, want %s", r.CoreBinary(), want)
 	}

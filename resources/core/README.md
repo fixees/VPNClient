@@ -1,6 +1,9 @@
-# Mihomo core + geo
+# Mihomo core + geo (build-time embed)
 
-Place here:
+These files are **embedded into MyInternetVPN.exe** at compile time and extracted
+to `%APPDATA%\MyInternetVPN\core\` on first launch. Users only need the single `.exe`.
+
+Place here before `go build` / `.\scripts\build.ps1` / `.\scripts\package.ps1`:
 
 ```text
 resources/core/mihomo.exe
