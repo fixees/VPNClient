@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-// Logger writes redacted application logs to a file and stdout.
+// Logger writes redacted application logs to a file.
 type Logger struct {
 	mu   sync.Mutex
 	file *os.File
@@ -27,7 +27,8 @@ func Open(path string) (*Logger, error) {
 	if err != nil {
 		return nil, err
 	}
-	w := io.MultiWriter(os.Stdout, f)
+	w := io.Writer(f)
+	// With -H windowsgui there is no console; never attach stdout (can spawn one).
 	return &Logger{
 		file: f,
 		std:  log.New(w, "", 0),

@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -83,6 +84,61 @@ proxies:
 	nodes, err := parse.ParseClashYAML([]byte(yamlDoc))
 	if err != nil || len(nodes) != 1 || nodes[0]["name"] != "yaml-1" {
 		t.Fatalf("clash: %v %#v", err, nodes)
+	}
+}
+
+func TestParseVLESSECH(t *testing.T) {
+	raw := "vless://11111111-1111-1111-1111-111111111111@ech.example:443?security=tls&type=tcp&ech=1&ech-config=YmFzZTY0#ECH"
+	node, err := parse.ParseShareLink(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts, ok := node["ech-opts"].(map[string]any)
+	if !ok || opts["enable"] != true || opts["config"] != "YmFzZTY0" {
+		t.Fatalf("ech-opts=%#v", node["ech-opts"])
+	}
+}
+
+func TestParseClashProxyProviders(t *testing.T) {
+	providerBody := []byte(`
+proxies:
+  - name: from-provider
+    type: ss
+    server: p.example
+    port: 443
+    cipher: aes-128-gcm
+    password: x
+`)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(providerBody)
+	}))
+	t.Cleanup(srv.Close)
+
+	doc := []byte(`
+proxy-providers:
+  remote:
+    type: http
+    url: "` + srv.URL + `"
+    interval: 3600
+`)
+	nodes, err := parse.ParseClashYAMLWithFetch(doc, func(u string) ([]byte, error) {
+		resp, err := http.Get(u)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
+		return io.ReadAll(resp.Body)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(nodes) != 1 || nodes[0]["name"] != "from-provider" {
+		t.Fatalf("%#v", nodes)
+	}
+
+	_, err = parse.ParseClashYAML(doc)
+	if err == nil {
+		t.Fatal("expected error without fetch for providers-only yaml")
 	}
 }
 

@@ -27,15 +27,9 @@ func EnableSystemProxy(host string, port int) (SystemProxySnapshot, error) {
 	}
 	defer key.Close()
 
-	snap := SystemProxySnapshot{}
-	if v, _, err := key.GetIntegerValue("ProxyEnable"); err == nil {
-		snap.ProxyEnable = uint32(v)
-	}
-	if v, _, err := key.GetStringValue("ProxyServer"); err == nil {
-		snap.ProxyServer = v
-	}
-	if v, _, err := key.GetStringValue("ProxyOverride"); err == nil {
-		snap.ProxyOverride = v
+	snap, err := readProxySnapshot(key)
+	if err != nil {
+		return SystemProxySnapshot{}, err
 	}
 
 	server := host + ":" + strconv.Itoa(port)
@@ -50,6 +44,30 @@ func EnableSystemProxy(host string, port int) (SystemProxySnapshot, error) {
 	}
 	notifyProxyChanged()
 	return snap, nil
+}
+
+func readProxySnapshot(key registry.Key) (SystemProxySnapshot, error) {
+	snap := SystemProxySnapshot{}
+	if v, _, err := key.GetIntegerValue("ProxyEnable"); err == nil {
+		snap.ProxyEnable = uint32(v)
+	}
+	if v, _, err := key.GetStringValue("ProxyServer"); err == nil {
+		snap.ProxyServer = v
+	}
+	if v, _, err := key.GetStringValue("ProxyOverride"); err == nil {
+		snap.ProxyOverride = v
+	}
+	return snap, nil
+}
+
+// ReadSystemProxy returns the current WinINET proxy settings.
+func ReadSystemProxy() (SystemProxySnapshot, error) {
+	key, err := registry.OpenKey(registry.CURRENT_USER, internetSettingsKey, registry.QUERY_VALUE)
+	if err != nil {
+		return SystemProxySnapshot{}, err
+	}
+	defer key.Close()
+	return readProxySnapshot(key)
 }
 
 // RestoreSystemProxy writes a previous snapshot back.
@@ -78,6 +96,22 @@ func DisableSystemProxy() error {
 	}
 	notifyProxyChanged()
 	return nil
+}
+
+// ClearOurSystemProxy disables WinINET proxy when it still points at our mixed port
+// (orphan after crash / hard power-off). Returns true when settings were changed.
+func ClearOurSystemProxy(host string, port int) (bool, error) {
+	cur, err := ReadSystemProxy()
+	if err != nil {
+		return false, err
+	}
+	if cur.ProxyEnable == 0 || !IsOurProxyServer(cur.ProxyServer, host, port) {
+		return false, nil
+	}
+	if err := DisableSystemProxy(); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func notifyProxyChanged() {

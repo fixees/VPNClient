@@ -7,6 +7,7 @@ export async function GetSettings() {
 export async function SaveSettings() { return null }
 export async function SetMode() { return null }
 export async function ListProfiles() { return [] }
+export async function ListRunningApps() { return [] }
 export async function ListNodes() { return [] }
 export async function CurrentNode() { return '' }
 export async function SelectNode() { return null }

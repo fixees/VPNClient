@@ -1,6 +1,6 @@
-# MyInternetVPN Client
+# Мой VPN Client
 
-Windows 10/11 desktop VPN client (Go + Wails + mihomo).
+Windows 10/11 desktop VPN client (Go + Wails + mihomo). Product name: **Мой VPN** ([myinternetvpn.com](https://myinternetvpn.com/)).
 
 **Stack:** Go + [Wails](https://wails.io) · **Core:** [mihomo](https://github.com/MetaCubeX/mihomo) (Clash Meta)
 

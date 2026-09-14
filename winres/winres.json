@@ -1,8 +1,12 @@
 {
   "RT_GROUP_ICON": {
-    "APP": {
+    "#3": {
       "0000": [
         "icon.png",
+        "icon128.png",
+        "icon64.png",
+        "icon48.png",
+        "icon32.png",
         "icon16.png"
       ]
     }
@@ -11,10 +15,10 @@
     "#1": {
       "0409": {
         "identity": {
-          "name": "MyInternetVPN",
+          "name": "MoyVPN",
           "version": "2.0.0.0"
         },
-        "description": "Windows VPN client",
+        "description": "Мой VPN Client",
         "minimum-os": "win7",
         "execution-level": "requireAdministrator",
         "ui-access": false,
@@ -41,13 +45,13 @@
         },
         "info": {
           "0409": {
-            "CompanyName": "MyInternetVPN",
-            "FileDescription": "Windows VPN client",
+            "CompanyName": "Мой VPN",
+            "FileDescription": "Мой VPN Client",
             "FileVersion": "2.0.0.0",
-            "InternalName": "MyInternetVPN",
-            "LegalCopyright": "Copyright MyInternetVPN",
+            "InternalName": "MoyVPN",
+            "LegalCopyright": "Copyright Мой VPN",
             "OriginalFilename": "MyInternetVPN.exe",
-            "ProductName": "MyInternetVPN",
+            "ProductName": "Мой VPN",
             "ProductVersion": "2.0.0.0"
           }
         }

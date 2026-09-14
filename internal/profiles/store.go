@@ -77,6 +77,12 @@ type Settings struct {
 	VPNInterface            string `json:"vpnInterface"`
 	BypassLAN               bool   `json:"bypassLan"`
 	BypassGEOIP             string `json:"bypassGeoip"`     // e.g. CN; empty = off
+	RouteDirect             string `json:"routeDirect"`     // multiline domains/IPs/regexp → DIRECT
+	RouteBlock              string `json:"routeBlock"`      // multiline → REJECT
+	RouteProxy              string `json:"routeProxy"`      // multiline → PROXY
+	RouteWhitelist          bool   `json:"routeWhitelist"`  // MATCH→REJECT; only listed traffic allowed
+	AppRouteMode            string `json:"appRouteMode"`    // off | whitelist | blacklist
+	AppRouteList            string `json:"appRouteList"`    // multiline process names / paths
 	DNSEnhancedMode         string `json:"dnsEnhancedMode"` // fake-ip | redir-host
 	DNSNameservers          string `json:"dnsNameservers"`  // comma/space separated
 	DNSFallbacks            string `json:"dnsFallbacks"`
@@ -85,10 +91,18 @@ type Settings struct {
 	TCPConcurrent           bool   `json:"tcpConcurrent"`
 	UnifiedDelay            bool   `json:"unifiedDelay"`
 	WARPEnabled             bool   `json:"warpEnabled"`
+	WARPMode                string `json:"warpMode"` // via-proxy | proxy-via-warp
 	WARPPrivateKey          string `json:"warpPrivateKey"`
 	WARPLocalAddress        string `json:"warpLocalAddress"`
 	WARPEndpoint            string `json:"warpEndpoint"`
 	WARPPublicKey           string `json:"warpPublicKey"`
+	WARPLicenseKey          string `json:"warpLicenseKey"`
+	WARPCleanIP             string `json:"warpCleanIp"` // override endpoint host; "auto" = empty
+	WARPPort                int    `json:"warpPort"`    // 0 = from endpoint / default 2408
+	WARPNoiseCount          string `json:"warpNoiseCount"`
+	WARPNoiseMode           string `json:"warpNoiseMode"`
+	WARPNoiseSize           string `json:"warpNoiseSize"`
+	WARPNoiseDelay          string `json:"warpNoiseDelay"`
 	UpdateOwner             string `json:"updateOwner"`
 	UpdateRepo              string `json:"updateRepo"`
 	UpdateTag               string `json:"updateTag"`
@@ -99,6 +113,10 @@ type Settings struct {
 	CloseToTray             bool   `json:"closeToTray"`
 	ProxyGroup              string `json:"proxyGroup"`
 	SelectedNode            string `json:"selectedNode"`
+	PingMethod              string `json:"pingMethod"`     // proxy-http-get | proxy-http-head | tcp | http-get | icmp
+	URLTestPreset           string `json:"urlTestPreset"`  // gstatic | cloudflare | apple | custom
+	URLTestURL              string `json:"urlTestUrl"`     // used when preset=custom
+	URLTestIntervalSec      int    `json:"urlTestIntervalSec"`
 }
 
 func DefaultSettings() *Settings {
@@ -128,10 +146,18 @@ func DefaultSettings() *Settings {
 		TCPConcurrent:           true,
 		UnifiedDelay:            true,
 		WARPEnabled:             false,
+		WARPMode:                defaults.WARPModeViaProxy,
 		WARPPrivateKey:          "",
 		WARPLocalAddress:        defaults.WARPLocalAddress,
 		WARPEndpoint:            defaults.WARPEndpoint,
 		WARPPublicKey:           defaults.WARPPublicKey,
+		WARPLicenseKey:          "",
+		WARPCleanIP:             "auto",
+		WARPPort:                0,
+		WARPNoiseCount:          "1-3",
+		WARPNoiseMode:           "m4",
+		WARPNoiseSize:           "10-30",
+		WARPNoiseDelay:          "10-30",
 		UpdateOwner:             defaults.UpdateOwner,
 		UpdateRepo:              defaults.UpdateRepo,
 		UpdateTag:               defaults.UpdateTag,
@@ -142,6 +168,10 @@ func DefaultSettings() *Settings {
 		CloseToTray:             true,
 		ProxyGroup:              defaults.ProxyGroup,
 		SelectedNode:            "",
+		PingMethod:              defaults.DefaultPingMethod,
+		URLTestPreset:           "gstatic",
+		URLTestURL:              defaults.URLTestURL,
+		URLTestIntervalSec:      defaults.URLTestIntervalSec,
 	}
 }
 
@@ -204,6 +234,12 @@ func (s *Store) List() ([]Profile, error) {
 	out := make([]Profile, len(s.profiles))
 	copy(out, s.profiles)
 	return out, nil
+}
+
+func (s *Store) Count() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.profiles)
 }
 
 func (s *Store) Get(name string) (Profile, error) {
@@ -357,7 +393,54 @@ func NormalizeSettings(cfg *Settings, fallbackSecret string) {
 	if cfg.WARPLocalAddress == "" {
 		cfg.WARPLocalAddress = defaults.WARPLocalAddress
 	}
+	switch strings.ToLower(strings.TrimSpace(cfg.WARPMode)) {
+	case defaults.WARPModeProxyViaWARP:
+		cfg.WARPMode = defaults.WARPModeProxyViaWARP
+	default:
+		cfg.WARPMode = defaults.WARPModeViaProxy
+	}
+	if strings.TrimSpace(cfg.WARPCleanIP) == "" {
+		cfg.WARPCleanIP = "auto"
+	}
+	if cfg.WARPNoiseCount == "" {
+		cfg.WARPNoiseCount = "1-3"
+	}
+	if cfg.WARPNoiseMode == "" {
+		cfg.WARPNoiseMode = "m4"
+	}
+	if cfg.WARPNoiseSize == "" {
+		cfg.WARPNoiseSize = "10-30"
+	}
+	if cfg.WARPNoiseDelay == "" {
+		cfg.WARPNoiseDelay = "10-30"
+	}
 	cfg.BypassGEOIP = strings.ToUpper(strings.TrimSpace(cfg.BypassGEOIP))
+	switch strings.ToLower(strings.TrimSpace(cfg.AppRouteMode)) {
+	case "whitelist", "allow", "only":
+		cfg.AppRouteMode = "whitelist"
+	case "blacklist", "deny", "except":
+		cfg.AppRouteMode = "blacklist"
+	default:
+		cfg.AppRouteMode = "off"
+	}
+
+	switch strings.ToLower(cfg.PingMethod) {
+	case defaults.PingProxyHTTPGet, defaults.PingProxyHTTPHead, defaults.PingTCP, defaults.PingHTTPGet, defaults.PingICMP:
+		cfg.PingMethod = strings.ToLower(cfg.PingMethod)
+	default:
+		cfg.PingMethod = defaults.DefaultPingMethod
+	}
+	preset := strings.ToLower(strings.TrimSpace(cfg.URLTestPreset))
+	switch preset {
+	case "gstatic", "cloudflare", "apple", "custom":
+		cfg.URLTestPreset = preset
+	default:
+		cfg.URLTestPreset = "gstatic"
+	}
+	if cfg.URLTestIntervalSec <= 0 {
+		cfg.URLTestIntervalSec = defaults.URLTestIntervalSec
+	}
+	cfg.URLTestURL = defaults.ResolveURLTestURL(cfg.URLTestPreset, cfg.URLTestURL)
 }
 
 // SplitList parses a comma/space/newline separated list.

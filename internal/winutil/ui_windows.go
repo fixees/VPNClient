@@ -59,8 +59,3 @@ func ActivateMainWindow(windowTitle string) bool {
 	return true
 }
 
-// HandleSecondInstance activates the running UI and informs the user.
-func HandleSecondInstance(windowTitle string) {
-	_ = ActivateMainWindow(windowTitle)
-	MessageBox(windowTitle, "Приложение уже запущено.\nОткрыто существующее окно.", false)
-}

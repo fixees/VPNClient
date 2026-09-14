@@ -3,17 +3,24 @@ import './style.css'
 const root = document.querySelector('#app')
 
 const icons = {
-  home: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5z"/></svg>`,
-  profiles: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 7h13M8 12h13M8 17h13"/><path d="M3 7h.01M3 12h.01M3 17h.01"/></svg>`,
-  nodes: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1"/></svg>`,
-  settings: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>`,
+  home: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11.2 12 4l8 7.2"/><path d="M6.5 10.2V20h11V10.2"/></svg>`,
+  profiles: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5 7h14M5 12h14M5 17h14"/></svg>`,
+  nodes: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6.1 6.1l1.6 1.6M16.3 16.3l1.6 1.6M17.9 6.1l-1.6 1.6M7.7 16.3l-1.6 1.6"/></svg>`,
+  settings: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 3.2v1.8M12 19v1.8M20.8 12h-1.8M5 12H3.2M18.2 5.8l-1.3 1.3M7.1 16.9l-1.3 1.3M18.2 18.2l-1.3-1.3M7.1 7.1 5.8 5.8"/></svg>`,
   plus: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg>`,
   refresh: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a9 9 0 1 1-2.6-6.3"/><path d="M21 3v6h-6"/></svg>`,
+  history: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 7v5l3 2"/></svg>`,
+  caret: `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="m7 10 5 6 5-6z"/></svg>`,
   chevron: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6"/></svg>`,
   signal: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 20h2M7 20v-5M12 20V9M17 20V5M22 20v-9"/></svg>`,
   power: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v9"/><path d="M7.5 6.2a7.5 7.5 0 1 0 9 0"/></svg>`,
   search: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>`,
   trash: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M9 7V5h6v2M8 7l1 12h6l1-12"/></svg>`,
+  logs: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3.5h8.2L19 7.2V20.5H7z"/><path d="M15 3.5v4h4"/><path d="M10 11h6M10 14.5h6M10 18h4"/></svg>`,
+  shield: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 5 6v5c0 5 3.2 8.4 7 9.8 3.8-1.4 7-4.8 7-9.8V6l-7-3z"/></svg>`,
+  lock: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>`,
+  auto: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5v3M12 17.5v3M3.5 12h3M17.5 12h3"/><circle cx="12" cy="12" r="3.2"/><path d="M7.2 7.2l1.5 1.5M15.3 15.3l1.5 1.5M16.8 7.2l-1.5 1.5M8.7 15.3l-1.5 1.5"/></svg>`,
+  cloudflare: `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.5 17.6H6.2c-2.1 0-3.8-1.7-3.8-3.8 0-1.8 1.3-3.4 3.1-3.7.6-2.5 2.8-4.3 5.4-4.3 2.1 0 4 1.2 4.9 3.1.5-.2 1-.3 1.6-.3 2.3 0 4.1 1.8 4.1 4.1 0 2.3-1.8 4.1-4.1 4.1h-.9z"/><path d="M8.1 14.2h9.3c.9 0 1.7-.7 1.7-1.6 0-.8-.6-1.5-1.4-1.6l-.7-.1-.3-.6c-.6-1.4-2-2.3-3.5-2.3-1.7 0-3.2 1.1-3.7 2.7l-.2.6-.6.1c-1.1.1-1.9 1-1.9 2.1 0 .9.7 1.7 1.7 1.7h-.4z" opacity=".92"/></svg>`,
 }
 
 const mock = {
@@ -25,10 +32,12 @@ const mock = {
   },
   async SaveSettings() { return null },
   async ListProfiles() { return [] },
+  async ListRunningApps() { return [{ name: 'AyuGram.exe', path: 'C:\\Apps\\AyuGram.exe', pid: 1 }] },
   async ListNodes() { return [] },
   async CurrentNode() { return '' },
   async SelectNode() { return null },
   async TestAllNodes() { return [] },
+  async ConnectAndProbe() { return [] },
   async ToggleConnect() { return null },
   async ImportProfileText() { return null },
   async SyncSubscription() { return null },
@@ -40,9 +49,17 @@ const mock = {
   async ApplyUpdate() { return null },
   async QuitApp() { return null },
   async GetLogsTail() { return '' },
+  async GenerateWARPConfig() {
+    return { privateKey: 'dev', localAddress: '172.16.0.2/32' }
+  },
 }
 
 async function api() {
+  // Wails injects bindings shortly after load; don't block the UI for long.
+  for (let i = 0; i < 40; i++) {
+    if (window.go?.main?.App) return window.go.main.App
+    await new Promise((r) => setTimeout(r, 25))
+  }
   if (window.go?.main?.App) return window.go.main.App
   try {
     return await import(/* @vite-ignore */ '../wailsjs/go/main/App.js')
@@ -50,6 +67,10 @@ async function api() {
     return mock
   }
 }
+
+// Shared with module-level helpers (app picker, chips). Boot upgrades bridge to Wails.
+let bridge = mock
+let state = { settings: {} }
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -69,18 +90,78 @@ function fmtRate(n) {
 function fmtBytes(n) {
   const v = Number(n || 0)
   if (!Number.isFinite(v) || v < 0) return '∞'
-  if (v >= 1024 ** 3) return (v / 1024 ** 3).toFixed(2) + ' ГБ'
-  if (v >= 1024 ** 2) return (v / 1024 ** 2).toFixed(1) + ' МБ'
-  if (v >= 1024) return (v / 1024).toFixed(1) + ' КБ'
-  return Math.round(v) + ' Б'
+  if (v >= 1024 ** 3) return (v / 1024 ** 3).toFixed(2) + 'GiB'
+  if (v >= 1024 ** 2) return (v / 1024 ** 2).toFixed(1) + 'MiB'
+  if (v >= 1024) return (v / 1024).toFixed(1) + 'KiB'
+  return Math.round(v) + 'B'
 }
 
 function daysLeft(unix) {
-  const n = Number(unix || 0)
+  let n = Number(unix || 0)
   if (!n) return '∞'
+  // Guard: some cached payloads may still be ms.
+  if (n >= 1e12) n = Math.floor(n / 1000)
   const days = Math.ceil((n * 1000 - Date.now()) / 86400000)
   if (days < 0) return 'истёк'
   return String(days)
+}
+
+function expireLabel(unix) {
+  const d = daysLeft(unix)
+  if (d === 'истёк') return 'срок истёк'
+  return `осталось ${d} дней`
+}
+
+function quotaPercent(used, total) {
+  const t = Number(total || 0)
+  if (t <= 0) return 0
+  return Math.min(100, Math.max(0, Math.round((Number(used || 0) / t) * 100)))
+}
+
+function renderQuotaCard(state) {
+  const status = state.status || {}
+  const q = status.subscriptionQuota || {}
+  const used = Number(q.used || 0)
+  const total = Number(q.total || 0)
+  const pct = quotaPercent(used, total)
+  const active = status.activeProfile || ''
+  const profiles = state.profiles || []
+  const menuOpen = !!state.quotaMenuOpen
+  const canSync = !!(active && profiles.some((p) => p.name === active && p.subscriptionURL))
+  const menu = profiles.length
+    ? profiles.map((p) => `
+        <button class="quota-menu-item ${p.name === active ? 'active' : ''}" type="button" data-profile="${escapeHtml(p.name)}">
+          <strong>${escapeHtml(p.name)}</strong>
+          <span>${(p.proxies || []).length} серв.${p.subscriptionURL ? ' · подписка' : ''}</span>
+        </button>`).join('')
+    : `<button class="quota-menu-item" type="button" data-action="go-profiles"><strong>Добавить профиль</strong><span>Импорт подписки или URI</span></button>`
+
+  return `
+    <div class="quota-card ${menuOpen ? 'menu-open' : ''} ${q.expired ? 'is-expired' : ''}">
+      <button class="quota-sync" type="button" data-action="sync-active" title="${canSync ? 'Обновить подписку' : 'Обновить подписки'}" ${active || profiles.length ? '' : 'disabled'}>
+        ${icons.history}
+      </button>
+      <div class="quota-divider" aria-hidden="true"></div>
+      <div class="quota-body">
+        <div class="quota-profile-wrap">
+          <button class="quota-profile" type="button" data-action="toggle-quota-menu" title="Сменить профиль">
+            <strong id="active-profile">${escapeHtml(active || 'Нет профиля')}</strong>
+            <span class="quota-caret">${icons.caret}</span>
+          </button>
+          <div class="quota-menu ${menuOpen ? 'open' : ''}" id="quota-profile-menu" role="menu">
+            ${menu}
+          </div>
+        </div>
+        <div class="bar" title="${pct ? pct + '%' : 'без лимита'}">
+          <i id="quota-bar" style="width:${pct}%"></i>
+        </div>
+        <div class="quota-meta">
+          <span id="quota-text">${fmtBytes(used)} / ${fmtBytes(total > 0 ? total : -1)}</span>
+          <span id="quota-expire">${escapeHtml(expireLabel(q.expireUnix))}</span>
+        </div>
+      </div>
+    </div>
+  `
 }
 
 function modeLabel(mode) {
@@ -95,7 +176,21 @@ function nodeKind(type) {
   const t = String(type || '').toLowerCase()
   if (!t || t === 'proxy') return 'Сервер'
   if (t === 'urltest' || t === 'selector') return 'Группа'
-  return t.toUpperCase()
+  const labels = {
+    vless: 'VLESS',
+    vmess: 'VMess',
+    trojan: 'Trojan',
+    ss: 'Shadowsocks',
+    ssr: 'SSR',
+    tuic: 'TUIC',
+    hysteria: 'Hysteria',
+    hysteria2: 'Hysteria2',
+    wireguard: 'WireGuard',
+    ssh: 'SSH',
+    socks5: 'SOCKS5',
+    http: 'HTTP',
+  }
+  return labels[t] || t.toUpperCase()
 }
 
 function delayClass(ms) {
@@ -105,12 +200,115 @@ function delayClass(ms) {
   return 'slow'
 }
 
+function delayBadgeHTML(delay, pinging) {
+  if (pinging) {
+    return `<span class="badge loading" title="Проверка…"><span class="ping-spinner" aria-hidden="true"></span></span>`
+  }
+  return `<span class="badge ${delayClass(delay)}">${delay > 0 ? delay + ' мс' : '—'}</span>`
+}
+
+function isAutoNode(n) {
+  return n?.name === 'AUTO' || String(n?.type || '').toLowerCase() === 'urltest'
+}
+
+function nodeSubtitle(n) {
+  if (isAutoNode(n)) {
+    const now = String(n?.now || '').trim()
+    if (!now) return 'Лучший сервер по задержке'
+    const label = parseNodeVisual(now).rest || now
+    return `Сейчас: ${label}`
+  }
+  return nodeKind(n?.type)
+}
+
+/** Regional Indicator Symbol A..Z → country code / Twemoji (Windows often shows flags as "DE"). */
+const RI_A = 0x1F1E6
+const RI_Z = 0x1F1FF
+
+function parseNodeVisual(name) {
+  const s = String(name || '').trim()
+  if (!s) return { code: '', rest: '?', original: s }
+  const chars = Array.from(s)
+  let code = ''
+  let restStart = 0
+
+  if (chars.length >= 2) {
+    const a = chars[0].codePointAt(0)
+    const b = chars[1].codePointAt(0)
+    if (a >= RI_A && a <= RI_Z && b >= RI_A && b <= RI_Z) {
+      code = String.fromCharCode(65 + (a - RI_A)) + String.fromCharCode(65 + (b - RI_A))
+      restStart = 2
+      while (restStart < chars.length && /\s/u.test(chars[restStart])) restStart += 1
+    }
+  }
+
+  // ASCII "DE Германия" / "DE-Germany" (no emoji in source)
+  if (!code) {
+    const m = s.match(/^([A-Za-z]{2})(?:\s+|[-_|·.]+)/)
+    if (m) {
+      code = m[1].toUpperCase()
+      restStart = m[0].length
+    }
+  }
+
+  let rest = chars.slice(restStart).join('').trim()
+  if (!rest) rest = s
+  return { code, rest, original: s }
+}
+
+function twemojiFlagURL(code) {
+  const cc = String(code || '').toUpperCase()
+  if (!/^[A-Z]{2}$/.test(cc)) return ''
+  const hex = [...cc].map((ch) => (RI_A + ch.charCodeAt(0) - 65).toString(16)).join('-')
+  return `https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/${hex}.png`
+}
+
+function flagImgHTML(code, size = 20) {
+  const cc = String(code || '').toUpperCase()
+  const url = twemojiFlagURL(cc)
+  if (!url) return ''
+  const safe = escapeHtml(cc)
+  return `<img class="flag-img" width="${size}" height="${size}" alt="${safe}" title="${safe}" data-cc="${safe}" src="${url}" loading="lazy" decoding="async" onerror="this.onerror=null;var s=document.createElement('span');s.className='flag-fallback';s.textContent=this.getAttribute('data-cc');this.replaceWith(s);" />`
+}
+
+function nodeBadgeHTML(name) {
+  if (String(name || '') === 'AUTO') {
+    return `<span class="auto-badge" title="Автовыбор">${icons.auto}</span>`
+  }
+  const v = parseNodeVisual(name)
+  if (v.code) {
+    const img = flagImgHTML(v.code, 22)
+    if (img) return img
+    return `<span class="flag-fallback">${escapeHtml(v.code)}</span>`
+  }
+  // Prefer letters (incl. Cyrillic); avoid "#1" → "1"
+  const chars = Array.from(v.rest || name || '?')
+  const letters = chars.filter((c) => /\p{L}/u.test(c))
+  if (letters.length >= 2) return escapeHtml((letters[0] + letters[1]).toUpperCase())
+  if (letters.length === 1) return escapeHtml(letters[0].toUpperCase())
+  const grapheme = chars[0] || '?'
+  return escapeHtml(grapheme)
+}
+
+function formatNodeTitleHTML(name) {
+  if (String(name || '') === 'AUTO') {
+    return `<span class="node-title-text">Автовыбор</span>`
+  }
+  const v = parseNodeVisual(name)
+  if (v.code) {
+    return `<span class="node-title-row"><span class="node-title-text">${escapeHtml(v.rest)}</span></span>`
+  }
+  return `<span class="node-title-text">${escapeHtml(v.original || name || '')}</span>`
+}
+
+/** @deprecated use nodeBadgeHTML — kept for call sites expecting plain text */
 function nodeInitials(name) {
-  const s = String(name || '?').trim()
-  if (!s) return '?'
-  const parts = s.split(/[\s#_-]+/).filter(Boolean)
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
-  return s.slice(0, 2).toUpperCase()
+  const v = parseNodeVisual(name)
+  if (v.code) return v.code
+  const letters = Array.from(v.rest || '').filter((c) => /\p{L}/u.test(c))
+  if (letters.length >= 2) return (letters[0] + letters[1]).toUpperCase()
+  if (letters.length === 1) return letters[0].toUpperCase()
+  return Array.from(String(name || '?'))[0] || '?'
 }
 
 function friendlyError(err) {
@@ -122,10 +320,63 @@ function friendlyError(err) {
   return s.replace(/^Error:\s*/i, '').replace(/^.*?:\s*/, (m) => (m.length > 40 ? '' : m)) || 'Что-то пошло не так'
 }
 
+/** Replace native <select> popups (ugly in WebView2) with themed custom dropdowns. */
+function enhanceSelects(scope) {
+  if (!scope) return
+  scope.querySelectorAll('select:not([data-enhanced])').forEach((sel) => {
+    sel.setAttribute('data-enhanced', '1')
+    sel.classList.add('select-native')
+    const wrap = document.createElement('div')
+    wrap.className = 'cselect'
+    sel.parentNode.insertBefore(wrap, sel)
+    wrap.appendChild(sel)
+
+    const trigger = document.createElement('button')
+    trigger.type = 'button'
+    trigger.className = 'cselect-trigger'
+    trigger.setAttribute('aria-haspopup', 'listbox')
+
+    const menu = document.createElement('div')
+    menu.className = 'cselect-menu'
+    menu.setAttribute('role', 'listbox')
+
+    function sync() {
+      const opt = sel.options[sel.selectedIndex]
+      trigger.innerHTML = `<span>${escapeHtml(opt ? opt.textContent : '')}</span><span class="cselect-chev">${icons.chevron}</span>`
+      menu.innerHTML = Array.from(sel.options).map((o, i) => (
+        `<button type="button" class="cselect-option${i === sel.selectedIndex ? ' active' : ''}" role="option" data-value="${escapeHtml(o.value)}" ${o.disabled ? 'disabled' : ''}>${escapeHtml(o.textContent)}</button>`
+      )).join('')
+    }
+    sync()
+    wrap.appendChild(trigger)
+    wrap.appendChild(menu)
+
+    trigger.addEventListener('click', (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const open = !wrap.classList.contains('open')
+      scope.querySelectorAll('.cselect.open').forEach((el) => el.classList.remove('open'))
+      wrap.classList.toggle('open', open)
+    })
+    menu.addEventListener('click', (e) => {
+      const btn = e.target.closest('.cselect-option')
+      if (!btn || btn.disabled) return
+      e.preventDefault()
+      e.stopPropagation()
+      sel.value = btn.getAttribute('data-value')
+      sel.dispatchEvent(new Event('change', { bubbles: true }))
+      sel.dispatchEvent(new Event('input', { bubbles: true }))
+      wrap.classList.remove('open')
+      sync()
+    })
+  })
+}
+
 const titles = {
   home: 'Подключение',
   profiles: 'Профили',
   nodes: 'Серверы',
+  logs: 'Логи',
   settings: 'Настройки',
 }
 
@@ -134,13 +385,14 @@ function shellHTML() {
     <div class="app">
       <aside class="sidebar">
         <div class="brand-block">
-          <div class="brand">My<span>Internet</span>VPN</div>
-          <div class="brand-sub">Безопасное соединение</div>
+          <div class="brand">Мой <span class="brand-accent">VPN</span></div>
+          <div class="brand-sub">Клиент для VPN</div>
         </div>
         <nav class="nav" id="nav">
           <button class="nav-btn active" data-view="home" type="button">${icons.home}<span>Главная</span></button>
           <button class="nav-btn" data-view="profiles" type="button">${icons.profiles}<span>Профили</span></button>
           <button class="nav-btn" data-view="nodes" type="button">${icons.nodes}<span>Серверы</span></button>
+          <button class="nav-btn" data-view="logs" type="button">${icons.logs}<span>Логи</span></button>
           <button class="nav-btn" data-view="settings" type="button">${icons.settings}<span>Настройки</span></button>
         </nav>
         <div class="sidebar-foot">
@@ -179,36 +431,27 @@ function topActionsFor(view) {
   if (view === 'nodes') {
     return `<button class="ghost compact" type="button" data-action="test-all">Проверить пинг</button>`
   }
+  if (view === 'logs') {
+    return `<button class="ghost compact" type="button" data-action="refresh-logs">Обновить</button>`
+  }
   return ''
 }
 
 function renderHome(state) {
   const { status, currentNode, nodes, busy } = state
   const connected = status.state === 'connected'
-  const q = status.subscriptionQuota || {}
-  const used = Number(q.used || 0)
-  const total = Number(q.total || 0)
-  const pct = total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0
   const node = currentNode || status.selectedNode || ''
   const nodeInfo = (nodes || []).find((n) => n.name === node)
   const delay = nodeInfo?.delay || 0
   const hasProfile = !!status.activeProfile
+  const warpOn = !!(status.warpEnabled && connected)
+  const titleHTML = warpOn && node
+    ? `<span class="node-title-row">${icons.lock}<span class="warp-chain">WARP →</span>${formatNodeTitleHTML(node)}</span>`
+    : (node ? formatNodeTitleHTML(node) : 'Автовыбор')
 
   return `
     <div class="home">
-      <div class="quota-card">
-        <button class="profile-chip" type="button" data-action="go-profiles" title="Сменить профиль">
-          <strong id="active-profile">${escapeHtml(status.activeProfile || 'Нет профиля')}</strong>
-        </button>
-        <div class="quota-mid">
-          <div class="quota-text">
-            <span id="quota-text">${fmtBytes(used)} / ${fmtBytes(total || -1)}</span>
-            <span class="left" id="quota-pct">${pct ? pct + '%' : ''}</span>
-          </div>
-          <div class="bar"><i id="quota-bar" style="width:${pct}%"></i></div>
-        </div>
-        <div class="quota-expire" id="quota-expire">${escapeHtml(daysLeft(q.expireUnix))} дн.</div>
-      </div>
+      ${renderQuotaCard(state)}
 
       <div class="stage">
         <button id="power-btn" class="power ${connected ? 'on' : 'off'} ${busy ? 'busy' : ''}" type="button" data-action="toggle" ${hasProfile ? '' : 'disabled'} aria-label="Подключить">
@@ -216,22 +459,36 @@ function renderHome(state) {
           <div class="power-mark">${icons.power}</div>
         </button>
         <div id="status-line" class="status-line ${connected ? 'on' : 'off'}">${connected ? 'Подключено' : hasProfile ? 'Отключено' : 'Добавьте профиль'}</div>
+        <div id="warp-badge" class="warp-badge ${warpOn ? 'show' : ''}">${icons.shield}<span>Защищено с помощью WARP</span></div>
         <div class="latency">
           ${icons.signal}
           <strong id="latency-value">${delay > 0 ? delay + ' мс' : connected ? '—' : 'ожидание'}</strong>
           <span class="dot">·</span>
           <span id="mode-value">${escapeHtml(modeLabel(status.mode))}</span>
         </div>
+        <div class="ip-line" id="public-ip-line" title="Публичный IP">
+          <span class="ip-label">IP</span>
+          <strong id="public-ip-value">${escapeHtml(status.publicIP || (connected ? '...' : '-'))}</strong>
+        </div>
         ${!hasProfile ? `<button class="primary cta-inline" type="button" data-action="go-profiles">Добавить профиль</button>` : ''}
       </div>
 
-      <button class="server-card" type="button" data-action="go-nodes" ${connected || hasProfile ? '' : 'disabled'}>
-        <div class="server-flag" id="server-flag">${escapeHtml(nodeInitials(node || 'AU'))}</div>
+      <button class="server-card ${warpOn ? 'warp-on' : ''}" type="button" data-action="go-nodes" ${connected || hasProfile ? '' : 'disabled'}>
+        <div class="server-flag" id="server-flag">${node ? nodeBadgeHTML(node) : 'AU'}${warpOn ? `<span class="warp-cloud" title="Cloudflare WARP">${icons.cloudflare}</span>` : ''}</div>
         <div>
-          <div class="title" id="server-title">${escapeHtml(node || 'Автовыбор')}</div>
-          <div class="sub" id="server-sub">${escapeHtml(nodeKind(nodeInfo?.type))} · нажмите, чтобы выбрать</div>
+          <div class="title" id="server-title">${titleHTML}</div>
+          <div class="sub" id="server-sub">${escapeHtml(
+            node
+              ? (node === 'AUTO' || String(nodeInfo?.type || '').toLowerCase() === 'urltest'
+                  ? nodeSubtitle(nodeInfo || { name: 'AUTO', type: 'URLTest' })
+                  : `${nodeKind(nodeInfo?.type)} · нажмите, чтобы выбрать`)
+              : 'нажмите, чтобы выбрать'
+          )}</div>
         </div>
-        <div class="chev">${icons.chevron}</div>
+        <div class="server-right">
+          ${warpOn ? '<span class="warp-tag">WARP</span>' : ''}
+          <div class="chev">${icons.chevron}</div>
+        </div>
       </button>
     </div>
   `
@@ -273,7 +530,7 @@ function renderProfiles(state) {
       <div class="panel-title">Импорт</div>
       <form id="add-form" class="form">
         <label>Ссылка или конфиг
-          <textarea name="proxy" rows="4" placeholder="https://…/subscription&#10;или vless://… / vmess://… / ss://…&#10;или Clash YAML" required></textarea>
+          <textarea name="proxy" rows="4" placeholder="https://…/subscription&#10;или myvpn://import/https://…&#10;или vless:// / vmess:// / trojan:// / hy2:// / tuic:// / ss://&#10;или Clash YAML" required></textarea>
         </label>
         <label>Название
           <input name="name" placeholder="Например: Основной" />
@@ -284,12 +541,36 @@ function renderProfiles(state) {
   `
 }
 
+function sortNodesList(nodes, sortKey) {
+  const list = [...(nodes || [])]
+  const key = sortKey === 'name' ? 'name' : 'ping'
+  list.sort((a, b) => {
+    if (a.name === 'AUTO') return -1
+    if (b.name === 'AUTO') return 1
+    if (key === 'name') {
+      const an = parseNodeVisual(a.name).rest || a.name
+      const bn = parseNodeVisual(b.name).rest || b.name
+      return String(an).localeCompare(String(bn), 'ru', { sensitivity: 'base', numeric: true })
+    }
+    const da = Number(a.delay || 0)
+    const db = Number(b.delay || 0)
+    if (da <= 0 && db <= 0) {
+      return String(a.name).localeCompare(String(b.name), 'ru', { sensitivity: 'base' })
+    }
+    if (da <= 0) return 1
+    if (db <= 0) return -1
+    if (da !== db) return da - db
+    return String(a.name).localeCompare(String(b.name), 'ru', { sensitivity: 'base' })
+  })
+  return list
+}
+
 function renderNodes(state) {
-  const { status, nodes, currentNode, nodeQuery } = state
+  const { status, nodes, currentNode, nodeQuery, nodeSort } = state
   const connected = status.state === 'connected'
   if (!connected) {
     return `
-      <div class="panel">
+      <div class="panel nodes-panel">
         <div class="empty">
           <p>Список серверов доступен после подключения</p>
           <button class="primary" type="button" data-action="go-home">На главную</button>
@@ -297,25 +578,38 @@ function renderNodes(state) {
       </div>`
   }
 
+  const sort = nodeSort === 'name' ? 'name' : 'ping'
   const q = String(nodeQuery || '').trim().toLowerCase()
-  const filtered = (nodes || []).filter((n) => !q || String(n.name).toLowerCase().includes(q))
+  const filtered = sortNodesList(
+    (nodes || []).filter((n) => !q || String(n.name).toLowerCase().includes(q)),
+    sort
+  )
   const rows = filtered.map((n) => {
     const delay = n.delay || 0
+    const pinging = !!(state.pinging && state.pinging[n.name])
+    const auto = isAutoNode(n)
     return `
-      <button class="item node-item ${currentNode === n.name ? 'active' : ''}" type="button" data-node="${escapeHtml(n.name)}">
+      <button class="item node-item ${auto ? 'node-auto' : ''} ${currentNode === n.name ? 'active' : ''} ${pinging ? 'is-pinging' : ''}" type="button" data-node="${escapeHtml(n.name)}">
+        <div class="node-flag ${auto ? 'node-flag-auto' : ''}">${nodeBadgeHTML(n.name)}</div>
         <div class="node-main">
-          <strong>${escapeHtml(n.name)}</strong>
-          <span>${escapeHtml(nodeKind(n.type))}</span>
+          <strong class="node-title">${formatNodeTitleHTML(n.name)}</strong>
+          <span class="node-sub">${escapeHtml(nodeSubtitle(n))}</span>
         </div>
-        <span class="badge ${delayClass(delay)}">${delay > 0 ? delay + ' мс' : '—'}</span>
+        ${delayBadgeHTML(delay, pinging)}
       </button>`
   }).join('')
 
   return `
-    <div class="panel">
-      <div class="search-box">
-        ${icons.search}
-        <input id="node-search" type="search" placeholder="Поиск сервера" value="${escapeHtml(nodeQuery || '')}" />
+    <div class="panel nodes-panel">
+      <div class="nodes-toolbar">
+        <div class="search-box">
+          ${icons.search}
+          <input id="node-search" type="search" placeholder="Поиск сервера" value="${escapeHtml(nodeQuery || '')}" />
+        </div>
+        <div class="sort-group" role="group" aria-label="Сортировка">
+          <button class="sort-btn ${sort === 'ping' ? 'active' : ''}" type="button" data-node-sort="ping">По пингу</button>
+          <button class="sort-btn ${sort === 'name' ? 'active' : ''}" type="button" data-node-sort="name">По названию</button>
+        </div>
       </div>
       <div class="list nodes-list">${rows || '<div class="empty">Ничего не найдено</div>'}</div>
     </div>
@@ -336,11 +630,11 @@ function switchRow(name, checked, label, hint) {
 
 const settingsMenu = [
   { id: 'general', title: 'Общие', hint: 'Автозапуск, трей, обновления', icon: 'layers' },
-  { id: 'routing', title: 'Маршрутизация', hint: 'Режим, обход LAN и GEOIP', icon: 'route' },
+  { id: 'routing', title: 'Маршрутизация', hint: 'Режим, приложения, правила, GEOIP', icon: 'route' },
   { id: 'dns', title: 'DNS', hint: 'Резолверы и Fake-IP', icon: 'dns' },
   { id: 'inbound', title: 'Входящие', hint: 'Порт, TUN, LAN', icon: 'inbox' },
   { id: 'tricks', title: 'Обход DPI', hint: 'Sniffer и ускорение TCP', icon: 'scissors' },
-  { id: 'warp', title: 'WARP', hint: 'Cloudflare WireGuard', icon: 'cloud' },
+  { id: 'warp', title: 'WARP', hint: 'Доп. защита Cloudflare', icon: 'cloud' },
 ]
 
 const settingsIcons = {
@@ -356,7 +650,29 @@ function settingsBack() {
   return `<button class="settings-back" type="button" data-settings-section="">${icons.chevron.replace('m9 6 6 6-6 6', 'm15 6-6 6 6 6')}<span>Назад</span></button>`
 }
 
-function renderSettingsMenu() {
+function renderSettingsMenu(state = {}) {
+  const status = state.status || {}
+  const s = state.settings || {}
+  const connected = status.state === 'connected'
+  const version = status.appVersion || 'dev'
+  const core = status.coreVersion || '—'
+  const profile = status.activeProfile || 'нет'
+  const mode = modeLabel(status.mode || s.mode || 'rule')
+  const port = status.mixedPort || s.mixedPort || 7890
+  const tun = !!(status.tun ?? s.tun)
+  const warp = !!status.warpEnabled
+  const whitelist = !!(s.routeWhitelist)
+  const node = state.currentNode || status.selectedNode || ''
+  const ip = state.publicIP || status.publicIP || ''
+
+  const chips = [
+    `<span class="about-chip ${connected ? 'ok' : 'off'}">${connected ? 'Подключено' : 'Отключено'}</span>`,
+    `<span class="about-chip">${escapeHtml(mode)}</span>`,
+    `<span class="about-chip ${tun ? 'on' : ''}">TUN ${tun ? 'вкл' : 'выкл'}</span>`,
+    warp ? `<span class="about-chip on">WARP</span>` : '',
+    whitelist ? `<span class="about-chip warn">Белый список</span>` : '',
+  ].filter(Boolean).join('')
+
   return `
     <div class="settings-menu">
       ${settingsMenu.map((item) => `
@@ -370,10 +686,37 @@ function renderSettingsMenu() {
         </button>
       `).join('')}
       <div class="panel about-mini">
-        <img class="logo" src="./appicon.png" width="48" height="48" alt="" />
-        <div>
-          <strong>MyInternetVPN</strong>
-          <div class="muted">Настройки ядра mihomo</div>
+        <div class="about-mini-top">
+          <img class="logo" src="./appicon.png" width="48" height="48" alt="" />
+          <div class="about-mini-title">
+            <div class="about-mini-name">
+              <strong>Мой VPN Client</strong>
+              <span class="about-ver">v${escapeHtml(version)}</span>
+            </div>
+            <div class="about-chips">${chips}</div>
+          </div>
+        </div>
+        <div class="about-mini-grid">
+          <div class="about-stat">
+            <span class="about-stat-label">Профиль</span>
+            <strong id="about-profile">${escapeHtml(profile)}</strong>
+          </div>
+          <div class="about-stat">
+            <span class="about-stat-label">Сервер</span>
+            <strong id="about-node">${escapeHtml(node || '—')}</strong>
+          </div>
+          <div class="about-stat">
+            <span class="about-stat-label">Порт</span>
+            <strong>${escapeHtml(String(port))}</strong>
+          </div>
+          <div class="about-stat">
+            <span class="about-stat-label">Ядро</span>
+            <strong title="mihomo">${escapeHtml(core)}</strong>
+          </div>
+          <div class="about-stat about-stat-wide">
+            <span class="about-stat-label">Публичный IP</span>
+            <strong id="about-ip">${escapeHtml(ip || (connected ? '…' : '—'))}</strong>
+          </div>
         </div>
       </div>
     </div>
@@ -386,7 +729,7 @@ function renderSettingsGeneral(s, v) {
       ${settingsBack()}
       <div class="panel">
         <div class="panel-title">Общие</div>
-        ${switchRow('autostart', s.autostart, 'Автозапуск', 'При входе в Windows')}
+        ${switchRow('autostart', s.autostart, 'Автозапуск', 'При входе в Windows — сразу подключить VPN')}
         ${switchRow('closeToTray', s.closeToTray, 'Сворачивать в трей', 'Крестик скрывает окно')}
         ${switchRow('autoReconnect', s.autoReconnect, 'Автопереподключение', 'При обрыве связи')}
         ${switchRow('killSwitch', s.killSwitch, 'Kill switch', 'Блокировать интернет без VPN')}
@@ -411,17 +754,143 @@ function renderSettingsGeneral(s, v) {
           </select>
         </label>
         <div class="actions">
-          <button class="primary" type="submit">Сохранить</button>
           <button class="ghost" type="button" data-action="update">Проверить обновления</button>
         </div>
-        <div class="muted" style="margin-top:10px">Версия ${escapeHtml(v)}</div>
+        <div class="muted" style="margin-top:10px">Версия ${escapeHtml(v)} · изменения сохраняются сразу</div>
+        <div class="muted" style="margin-top:8px">Горячие ссылки: <code>myvpn://connect</code>, <code>myvpn://import/https://…</code>, <code>myvpn://add/vless://…</code></div>
       </div>
     </form>
   `
 }
 
+function parseAppListText(text) {
+  return String(text || '')
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith('#'))
+}
+
+function renderAppChips(apps) {
+  if (!apps.length) return '<span class="muted">Список пуст — добавьте .exe</span>'
+  return apps.map((name) => `
+    <button type="button" class="app-chip" data-app-remove="${escapeHtml(name)}" title="Убрать">
+      <span>${escapeHtml(name)}</span><span class="app-chip-x" aria-hidden="true">×</span>
+    </button>`).join('')
+}
+
+function syncAppRouteListField(apps) {
+  const ta = document.getElementById('app-route-list')
+  const chips = document.getElementById('app-chip-list')
+  const text = apps.join('\n')
+  if (ta) {
+    ta.value = text
+    ta.dispatchEvent(new Event('input', { bubbles: true }))
+  }
+  if (chips) chips.innerHTML = renderAppChips(apps)
+  if (state.settings) state.settings.appRouteList = text
+}
+
+function currentAppRouteList() {
+  const ta = document.getElementById('app-route-list')
+  return parseAppListText(ta ? ta.value : (state.settings?.appRouteList || ''))
+}
+
+function addAppToRouteList(name) {
+  name = String(name || '').trim().replace(/^["']|["']$/g, '')
+  if (!name) return
+  // Prefer basename for PROCESS-NAME
+  const base = name.split(/[/\\]/).pop() || name
+  const apps = currentAppRouteList()
+  if (apps.some((a) => a.toLowerCase() === base.toLowerCase())) return
+  apps.push(base)
+  apps.sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }))
+  syncAppRouteListField(apps)
+}
+
+function removeAppFromRouteList(name) {
+  const key = String(name || '').toLowerCase()
+  const apps = currentAppRouteList().filter((a) => a.toLowerCase() !== key)
+  syncAppRouteListField(apps)
+}
+
+async function openAppPicker() {
+  const picker = document.getElementById('app-picker')
+  const list = document.getElementById('app-picker-list')
+  const q = document.getElementById('app-picker-q')
+  if (!picker || !list) return
+  picker.classList.remove('hidden')
+  list.innerHTML = '<div class="muted">Загрузка…</div>'
+  let apps = []
+  try {
+    apps = (await bridge.ListRunningApps()) || []
+  } catch (err) {
+    list.innerHTML = `<div class="muted">${escapeHtml(friendlyError(err))}</div>`
+    return
+  }
+  const selected = new Set(currentAppRouteList().map((a) => a.toLowerCase()))
+  const paint = () => {
+    const query = String(q?.value || '').trim().toLowerCase()
+    const filtered = apps.filter((a) => {
+      const n = String(a.name || '').toLowerCase()
+      const p = String(a.path || '').toLowerCase()
+      return !query || n.includes(query) || p.includes(query)
+    })
+    if (!filtered.length) {
+      list.innerHTML = '<div class="muted">Ничего не найдено</div>'
+      return
+    }
+    list.innerHTML = filtered.map((a) => {
+      const name = a.name || ''
+      const on = selected.has(name.toLowerCase())
+      return `<button type="button" class="app-picker-item ${on ? 'on' : ''}" data-app-add="${escapeHtml(name)}">
+        <strong>${escapeHtml(name)}</strong>
+        <span>${escapeHtml(a.path || '')}</span>
+      </button>`
+    }).join('')
+  }
+  if (q && !q._bound) {
+    q._bound = true
+    q.addEventListener('input', paint)
+  }
+  paint()
+  if (q) q.focus()
+}
+
+function renderAppRoutePanel(s) {
+  const mode = String(s.appRouteMode || 'off').toLowerCase()
+  const apps = parseAppListText(s.appRouteList)
+  return `
+    <div class="panel">
+      <div class="panel-title">Приложения (split-tunnel)</div>
+      <p class="muted rules-hint">Маршрут по имени процесса (<code>PROCESS-NAME</code>). Нужен <strong>TUN</strong>. Пример: белый список + <code>AyuGram.exe</code> — VPN только для этого приложения, остальной трафик мимо.</p>
+      <label class="field">Режим приложений
+        <select name="appRouteMode" id="app-route-mode">
+          <option value="off" ${mode === 'off' ? 'selected' : ''}>Выключено</option>
+          <option value="whitelist" ${mode === 'whitelist' ? 'selected' : ''}>Белый список — VPN только для выбранных</option>
+          <option value="blacklist" ${mode === 'blacklist' ? 'selected' : ''}>Чёрный список — выбранные мимо VPN</option>
+        </select>
+      </label>
+      <textarea name="appRouteList" id="app-route-list" class="sr-only" aria-hidden="true">${escapeHtml(s.appRouteList || '')}</textarea>
+      <div class="app-route-toolbar">
+        <button class="ghost compact" type="button" data-action="pick-apps">Из запущенных…</button>
+        <button class="ghost compact" type="button" data-action="add-app-manual">Добавить вручную</button>
+      </div>
+      <div class="app-chip-list" id="app-chip-list">${renderAppChips(apps)}</div>
+      <div id="app-picker" class="app-picker hidden">
+        <div class="app-picker-head">
+          <input id="app-picker-q" type="search" placeholder="Поиск процесса…" autocomplete="off" />
+          <button class="ghost compact" type="button" data-action="close-app-picker">Закрыть</button>
+        </div>
+        <div id="app-picker-list" class="app-picker-list"><div class="muted">Загрузка…</div></div>
+      </div>
+    </div>
+  `
+}
+
 function renderSettingsRouting(s) {
   const geo = String(s.bypassGeoip || '').toUpperCase()
+  const ping = s.pingMethod || 'proxy-http-get'
+  const preset = s.urlTestPreset || 'gstatic'
   return `
     <form id="settings-form" class="settings" data-section="routing">
       ${settingsBack()}
@@ -444,7 +913,47 @@ function renderSettingsRouting(s) {
             <option value="OFF" ${geo === 'OFF' || geo === 'NONE' ? 'selected' : ''}>Выключено</option>
           </select>
         </label>
-        <div class="actions"><button class="primary" type="submit">Сохранить</button></div>
+      </div>
+      ${renderAppRoutePanel(s)}
+      <div class="panel">
+        <div class="panel-title">Свои правила</div>
+        ${switchRow('routeWhitelist', !!s.routeWhitelist, 'Белый список', 'Только записи из DIRECT/PROXY; остальное — REJECT (GEOIP-обход выключается)')}
+        <p class="muted rules-hint">По одной записи в строке. Поддерживаются домены, IP/CIDR и regexp. Префиксы: <code>domain:</code>, <code>suffix:</code>, <code>keyword:</code>, <code>regexp:</code>, <code>/pattern/</code>, <code>ip:</code>, <code>geoip:</code>, <code>geosite:</code>. Порядок: блок → напрямую → через VPN → ${s.routeWhitelist ? 'остальное REJECT' : 'GEOIP → остальное'}.</p>
+        <label class="field">Блок (REJECT)
+          <textarea name="routeBlock" rows="5" placeholder="ads.example.com&#10;regexp:^tracker\\.&#10;geosite:category-ads-all">${escapeHtml(s.routeBlock || '')}</textarea>
+        </label>
+        <label class="field">Напрямую (DIRECT / байпас)
+          <textarea name="routeDirect" rows="5" placeholder="example.com&#10;*.local&#10;10.0.0.0/8&#10;192.168.1.1">${escapeHtml(s.routeDirect || '')}</textarea>
+        </label>
+        <label class="field">Через VPN (PROXY)
+          <textarea name="routeProxy" rows="5" placeholder="blocked-site.com&#10;domain:exact.example&#10;/^cdn\\..*\\.example\\.com$/">${escapeHtml(s.routeProxy || '')}</textarea>
+        </label>
+      </div>
+      <div class="panel">
+        <div class="panel-title">Пинг и URL-тест</div>
+        <label class="field">Протокол пинга
+          <select name="pingMethod">
+            <option value="proxy-http-get" ${ping === 'proxy-http-get' ? 'selected' : ''}>HTTP GET через прокси</option>
+            <option value="proxy-http-head" ${ping === 'proxy-http-head' ? 'selected' : ''}>HTTP HEAD через прокси</option>
+            <option value="tcp" ${ping === 'tcp' ? 'selected' : ''}>TCP (server:port)</option>
+            <option value="http-get" ${ping === 'http-get' ? 'selected' : ''}>HTTP GET (напрямую)</option>
+            <option value="icmp" ${ping === 'icmp' ? 'selected' : ''}>ICMP</option>
+          </select>
+        </label>
+        <label class="field">URL-тест
+          <select name="urlTestPreset">
+            <option value="gstatic" ${preset === 'gstatic' ? 'selected' : ''}>Google (gstatic)</option>
+            <option value="cloudflare" ${preset === 'cloudflare' ? 'selected' : ''}>Cloudflare</option>
+            <option value="apple" ${preset === 'apple' ? 'selected' : ''}>Apple captive</option>
+            <option value="custom" ${preset === 'custom' ? 'selected' : ''}>Свой URL</option>
+          </select>
+        </label>
+        <label class="field">Свой URL
+          <input name="urlTestUrl" value="${escapeHtml(s.urlTestUrl || 'https://www.gstatic.com/generate_204')}" placeholder="https://…"/>
+        </label>
+        <label class="field">Интервал AUTO url-test (сек)
+          <input name="urlTestIntervalSec" type="number" min="30" max="3600" value="${Number(s.urlTestIntervalSec) || 300}"/>
+        </label>
       </div>
     </form>
   `
@@ -471,7 +980,6 @@ function renderSettingsDNS(s) {
         <label class="field">Fake-IP range
           <input name="dnsFakeIpRange" value="${escapeHtml(s.dnsFakeIpRange || '198.18.0.1/16')}"/>
         </label>
-        <div class="actions"><button class="primary" type="submit">Сохранить</button></div>
       </div>
     </form>
   `
@@ -495,7 +1003,6 @@ function renderSettingsInbound(s) {
           </select>
         </label>
         ${switchRow('useSystemProxy', s.useSystemProxy, 'Системный прокси', 'Если TUN выключен')}
-        <div class="actions"><button class="primary" type="submit">Сохранить</button></div>
       </div>
     </form>
   `
@@ -511,33 +1018,64 @@ function renderSettingsTricks(s) {
         ${switchRow('sniffer', s.sniffer !== false, 'Sniffer', 'Определять домен по TLS/HTTP')}
         ${switchRow('tcpConcurrent', s.tcpConcurrent !== false, 'TCP concurrent', 'Параллельные соединения')}
         ${switchRow('unifiedDelay', s.unifiedDelay !== false, 'Unified delay', 'Точнее измерять задержку узлов')}
-        <div class="actions"><button class="primary" type="submit">Сохранить</button></div>
       </div>
     </form>
   `
 }
 
 function renderSettingsWARP(s) {
+  const mode = s.warpMode === 'proxy-via-warp' ? 'proxy-via-warp' : 'via-proxy'
+  const hasKey = !!(s.warpPrivateKey && String(s.warpPrivateKey).trim())
   return `
     <form id="settings-form" class="settings" data-section="warp">
       ${settingsBack()}
       <div class="panel">
         <div class="panel-title">WARP</div>
-        <p class="settings-note">Добавляет Cloudflare WARP (WireGuard) в список серверов. Нужен private key из WARP / wgcf.</p>
-        ${switchRow('warpEnabled', s.warpEnabled, 'Включить WARP', 'Появится как сервер WARP')}
-        <label class="field">Private key
-          <input name="warpPrivateKey" value="${escapeHtml(s.warpPrivateKey || '')}" placeholder="base64 WireGuard private key" autocomplete="off"/>
+        <p class="settings-note">Дополнительная защита поверх VPN: трафик выходит через Cloudflare WARP. Не отдельный сервер в списке.</p>
+        ${switchRow('warpEnabled', s.warpEnabled, 'Включить WARP', 'Защита при подключении VPN')}
+        <button class="ghost" type="button" data-action="generate-warp" style="width:100%;margin:4px 0 12px">Сгенерировать конфигурацию WARP${hasKey ? ' ✓' : ''}</button>
+        <label class="field">Режим маршрутизации WARP
+          <select name="warpMode">
+            <option value="via-proxy" ${mode === 'via-proxy' ? 'selected' : ''}>Направлять WARP через прокси</option>
+            <option value="proxy-via-warp" ${mode === 'proxy-via-warp' ? 'selected' : ''}>Направлять прокси через WARP</option>
+          </select>
         </label>
-        <label class="field">Local address
-          <input name="warpLocalAddress" value="${escapeHtml(s.warpLocalAddress || '172.16.0.2/32')}"/>
+        <label class="field">Лицензионный ключ
+          <input name="warpLicenseKey" value="${escapeHtml(s.warpLicenseKey || '')}" placeholder="Не задано" autocomplete="off"/>
         </label>
-        <label class="field">Endpoint
-          <input name="warpEndpoint" value="${escapeHtml(s.warpEndpoint || 'engage.cloudflareclient.com:2408')}"/>
+        <label class="field">Чистый IP
+          <input name="warpCleanIp" value="${escapeHtml(s.warpCleanIp || 'auto')}" placeholder="auto"/>
         </label>
-        <label class="field">Cloudflare public key
-          <input name="warpPublicKey" value="${escapeHtml(s.warpPublicKey || 'bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=')}"/>
+        <label class="field">Порт
+          <input name="warpPort" type="number" min="0" max="65535" value="${Number(s.warpPort || 0)}"/>
         </label>
-        <div class="actions"><button class="primary" type="submit">Сохранить</button></div>
+        <label class="field">Количество шума
+          <input name="warpNoiseCount" value="${escapeHtml(s.warpNoiseCount || '1-3')}"/>
+        </label>
+        <label class="field">Режим шума
+          <input name="warpNoiseMode" value="${escapeHtml(s.warpNoiseMode || 'm4')}"/>
+        </label>
+        <label class="field">Размер шума
+          <input name="warpNoiseSize" value="${escapeHtml(s.warpNoiseSize || '10-30')}"/>
+        </label>
+        <label class="field">Задержка шума
+          <input name="warpNoiseDelay" value="${escapeHtml(s.warpNoiseDelay || '10-30')}"/>
+        </label>
+        <details class="warp-advanced">
+          <summary>Расширенные ключи</summary>
+          <label class="field">Private key
+            <input name="warpPrivateKey" value="${escapeHtml(s.warpPrivateKey || '')}" placeholder="заполняется генерацией" autocomplete="off"/>
+          </label>
+          <label class="field">Local address
+            <input name="warpLocalAddress" value="${escapeHtml(s.warpLocalAddress || '172.16.0.2/32')}"/>
+          </label>
+          <label class="field">Endpoint
+            <input name="warpEndpoint" value="${escapeHtml(s.warpEndpoint || 'engage.cloudflareclient.com:2408')}"/>
+          </label>
+          <label class="field">Cloudflare public key
+            <input name="warpPublicKey" value="${escapeHtml(s.warpPublicKey || 'bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=')}"/>
+          </label>
+        </details>
       </div>
     </form>
   `
@@ -553,7 +1091,7 @@ function renderSettings(state) {
     case 'inbound': return renderSettingsInbound(s)
     case 'tricks': return renderSettingsTricks(s)
     case 'warp': return renderSettingsWARP(s)
-    default: return renderSettingsMenu()
+    default: return renderSettingsMenu(state)
   }
 }
 
@@ -581,6 +1119,16 @@ function collectSettingsPatch(section, fd, prev) {
         ipv6: on('ipv6'),
         bypassLan: on('bypassLan'),
         bypassGeoip: String(fd.get('bypassGeoip') || 'CN'),
+        routeWhitelist: on('routeWhitelist'),
+        routeBlock: String(fd.get('routeBlock') || ''),
+        routeDirect: String(fd.get('routeDirect') || ''),
+        routeProxy: String(fd.get('routeProxy') || ''),
+        appRouteMode: String(fd.get('appRouteMode') || 'off'),
+        appRouteList: String(fd.get('appRouteList') || ''),
+        pingMethod: String(fd.get('pingMethod') || 'proxy-http-get'),
+        urlTestPreset: String(fd.get('urlTestPreset') || 'gstatic'),
+        urlTestUrl: String(fd.get('urlTestUrl') || ''),
+        urlTestIntervalSec: Number(fd.get('urlTestIntervalSec') || 300),
       }
     case 'dns':
       return {
@@ -610,6 +1158,14 @@ function collectSettingsPatch(section, fd, prev) {
       return {
         ...base,
         warpEnabled: on('warpEnabled'),
+        warpMode: String(fd.get('warpMode') || 'via-proxy'),
+        warpLicenseKey: String(fd.get('warpLicenseKey') || ''),
+        warpCleanIp: String(fd.get('warpCleanIp') || 'auto'),
+        warpPort: Number(fd.get('warpPort') || 0),
+        warpNoiseCount: String(fd.get('warpNoiseCount') || '1-3'),
+        warpNoiseMode: String(fd.get('warpNoiseMode') || 'm4'),
+        warpNoiseSize: String(fd.get('warpNoiseSize') || '10-30'),
+        warpNoiseDelay: String(fd.get('warpNoiseDelay') || '10-30'),
         warpPrivateKey: String(fd.get('warpPrivateKey') || ''),
         warpLocalAddress: String(fd.get('warpLocalAddress') || ''),
         warpEndpoint: String(fd.get('warpEndpoint') || ''),
@@ -620,40 +1176,203 @@ function collectSettingsPatch(section, fd, prev) {
   }
 }
 
+const LOG_LEVELS = ['trace', 'debug', 'info', 'warn', 'error']
+
+function parseLogLine(line) {
+  const raw = String(line || '')
+  const trimmed = raw.trim()
+  if (!trimmed) return { raw, level: '', time: null, isHeader: false, empty: true }
+  if (/^——\s*.+\s*——$/.test(trimmed) || /^---+\s/.test(trimmed)) {
+    return { raw, level: '', time: null, isHeader: true, empty: false }
+  }
+
+  let level = ''
+  const bracket = trimmed.match(/\[(TRACE|DEBUG|INFO|WARN|WARNING|ERROR|ERR|FATAL|DBG|INF|WRN)\]/i)
+  if (bracket) level = normalizeLogLevel(bracket[1])
+  if (!level) {
+    const key = trimmed.match(/(?:^|[\s"])level[=:]["']?(trace|debug|info|warn(?:ing)?|error|err|fatal)["']?/i)
+    if (key) level = normalizeLogLevel(key[1])
+  }
+  if (!level) {
+    const prefix = trimmed.match(/^(TRACE|DEBUG|INFO|WARN(?:ING)?|ERROR|ERR|FATAL)\b/i)
+    if (prefix) level = normalizeLogLevel(prefix[1])
+  }
+
+  let time = null
+  const iso = trimmed.match(/(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)/)
+  if (iso) {
+    const ms = Date.parse(iso[1].replace(' ', 'T'))
+    if (!Number.isNaN(ms)) time = ms
+  }
+  if (time == null) {
+    const quoted = trimmed.match(/time=["']([^"']+)["']/i)
+    if (quoted) {
+      const ms = Date.parse(quoted[1])
+      if (!Number.isNaN(ms)) time = ms
+    }
+  }
+
+  return { raw, level, time, isHeader: false, empty: false }
+}
+
+function normalizeLogLevel(v) {
+  const s = String(v || '').toLowerCase()
+  if (s === 'warning' || s === 'wrn') return 'warn'
+  if (s === 'err') return 'error'
+  if (s === 'inf') return 'info'
+  if (s === 'dbg') return 'debug'
+  if (s === 'fatal') return 'error'
+  return s
+}
+
+function logTimeCutoff(preset) {
+  const now = Date.now()
+  switch (String(preset || 'all')) {
+    case '5m': return now - 5 * 60 * 1000
+    case '15m': return now - 15 * 60 * 1000
+    case '1h': return now - 60 * 60 * 1000
+    case '6h': return now - 6 * 60 * 60 * 1000
+    case '24h': return now - 24 * 60 * 60 * 1000
+    default: return 0
+  }
+}
+
+function filterLogsText(raw, { query = '', level = 'all', time = 'all' } = {}) {
+  const text = String(raw || '')
+  if (!text) return ''
+  const q = String(query || '').trim().toLowerCase()
+  const wantLevel = normalizeLogLevel(level)
+  const cutoff = logTimeCutoff(time)
+  const useLevel = wantLevel && wantLevel !== 'all'
+  const useTime = cutoff > 0
+  if (!q && !useLevel && !useTime) return text
+
+  const lines = text.split('\n')
+  const out = []
+  for (const line of lines) {
+    const parsed = parseLogLine(line)
+    if (parsed.empty) {
+      if (out.length && out[out.length - 1] !== '') out.push('')
+      continue
+    }
+    if (parsed.isHeader) {
+      out.push(parsed.raw)
+      continue
+    }
+    if (q && !parsed.raw.toLowerCase().includes(q)) continue
+    if (useLevel) {
+      if (!parsed.level || parsed.level !== wantLevel) continue
+    }
+    if (useTime) {
+      // Lines without a timestamp stay visible unless a level/query already excluded them.
+      if (parsed.time != null && parsed.time < cutoff) continue
+    }
+    out.push(parsed.raw)
+  }
+  while (out.length && out[out.length - 1] === '') out.pop()
+  return out.join('\n')
+}
+
+function filteredLogs(state) {
+  const raw = state.logs || ''
+  if (!raw) return 'Загрузка…'
+  const filtered = filterLogsText(raw, {
+    query: state.logQuery,
+    level: state.logLevel,
+    time: state.logTime,
+  })
+  if (!filtered.trim()) return 'Нет записей по выбранным фильтрам'
+  return filtered
+}
+
+function renderLogs(state) {
+  const level = state.logLevel || 'all'
+  const time = state.logTime || 'all'
+  const query = state.logQuery || ''
+  return `
+    <div class="panel logs-panel">
+      <div class="panel-title">
+        <span>Журнал приложения и ядра</span>
+        <button class="ghost compact" type="button" data-action="refresh-logs">Обновить</button>
+      </div>
+      <div class="logs-filters">
+        <label class="logs-filter logs-filter-query">
+          <span>Поиск</span>
+          <input id="log-query" type="search" placeholder="Текст, имя, узел…" value="${escapeHtml(query)}" autocomplete="off"/>
+        </label>
+        <label class="logs-filter">
+          <span>Уровень</span>
+          <select id="log-level">
+            <option value="all" ${level === 'all' ? 'selected' : ''}>Все</option>
+            ${LOG_LEVELS.map((lvl) => `<option value="${lvl}" ${level === lvl ? 'selected' : ''}>${lvl}</option>`).join('')}
+          </select>
+        </label>
+        <label class="logs-filter">
+          <span>Время</span>
+          <select id="log-time">
+            <option value="all" ${time === 'all' ? 'selected' : ''}>Все время</option>
+            <option value="5m" ${time === '5m' ? 'selected' : ''}>5 минут</option>
+            <option value="15m" ${time === '15m' ? 'selected' : ''}>15 минут</option>
+            <option value="1h" ${time === '1h' ? 'selected' : ''}>1 час</option>
+            <option value="6h" ${time === '6h' ? 'selected' : ''}>6 часов</option>
+            <option value="24h" ${time === '24h' ? 'selected' : ''}>24 часа</option>
+          </select>
+        </label>
+      </div>
+      <pre class="logs-view" id="logs-view">${escapeHtml(filteredLogs(state))}</pre>
+    </div>
+  `
+}
+
 function renderView(state) {
   switch (state.view) {
     case 'profiles': return renderProfiles(state)
     case 'nodes': return renderNodes(state)
+    case 'logs': return renderLogs(state)
     case 'settings': return renderSettings(state)
     default: return renderHome(state)
   }
 }
 
 async function boot() {
-  const bridge = await api()
-  const state = {
+  if (!root) {
+    document.body.innerHTML = '<p style="color:#fff;padding:24px;font-family:sans-serif">UI root missing</p>'
+    return
+  }
+
+  // Paint shell immediately so a slow/failed backend call never leaves a blank window.
+  root.innerHTML = shellHTML()
+  const content = document.getElementById('content')
+  const toast = document.getElementById('toast')
+
+  // Start with mock; upgrade to Wails bindings when ready (never block click wiring).
+  bridge = mock
+  state = {
     view: 'home',
-    status: await bridge.GetStatus(),
+    status: { state: 'disconnected', activeProfile: '', mode: 'rule', speedUp: 0, speedDown: 0, appVersion: 'dev' },
     profiles: [],
     settings: {},
     nodes: [],
     currentNode: '',
     logs: '',
+    logQuery: '',
+    logLevel: 'all',
+    logTime: 'all',
     message: '',
     messageOk: false,
     busy: false,
     lastZip: '',
     delayMap: {},
+    pinging: {},
     formDirty: false,
     showImport: false,
     nodeQuery: '',
+    nodeSort: 'ping',
+    publicIP: '',
     toastTimer: 0,
     settingsSection: '',
+    quotaMenuOpen: false,
   }
-
-  root.innerHTML = shellHTML()
-  const content = document.getElementById('content')
-  const toast = document.getElementById('toast')
 
   function showToast(msg, ok = false) {
     state.message = msg || ''
@@ -676,7 +1395,7 @@ async function boot() {
     const sectionMeta = settingsMenu.find((x) => x.id === state.settingsSection)
     document.getElementById('view-title').textContent = state.view === 'settings' && sectionMeta
       ? sectionMeta.title
-      : (titles[state.view] || 'MyInternetVPN')
+      : (titles[state.view] || 'Мой VPN')
     const connected = state.status.state === 'connected'
     document.getElementById('view-meta').textContent = connected
       ? `Активно · ${modeLabel(state.status.mode)}`
@@ -695,7 +1414,7 @@ async function boot() {
     const q = state.status.subscriptionQuota || {}
     const used = Number(q.used || 0)
     const total = Number(q.total || 0)
-    const pct = total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0
+    const pct = quotaPercent(used, total)
     const node = state.currentNode || state.status.selectedNode || ''
     const nodeInfo = (state.nodes || []).find((n) => n.name === node)
     const delay = nodeInfo?.delay || 0
@@ -714,31 +1433,163 @@ async function boot() {
       statusLine.classList.toggle('on', connected)
       statusLine.classList.toggle('off', !connected)
     }
+    const warpOn = !!(state.status.warpEnabled && connected)
+    const warpBadge = document.getElementById('warp-badge')
+    if (warpBadge) warpBadge.classList.toggle('show', warpOn)
+    const serverCard = content.querySelector('.server-card')
+    if (serverCard) serverCard.classList.toggle('warp-on', warpOn)
     const latency = document.getElementById('latency-value')
     if (latency) latency.textContent = delay > 0 ? delay + ' мс' : connected ? '—' : 'ожидание'
     const mode = document.getElementById('mode-value')
     if (mode) mode.textContent = modeLabel(state.status.mode)
+    const ipEl = document.getElementById('public-ip-value')
+    if (ipEl) {
+      const masked = state.publicIP || state.status.publicIP || ''
+      ipEl.textContent = masked || (connected ? '...' : '-')
+    }
     const profileChip = document.getElementById('active-profile')
     if (profileChip) profileChip.textContent = state.status.activeProfile || 'Нет профиля'
     const quotaText = document.getElementById('quota-text')
-    if (quotaText) quotaText.textContent = `${fmtBytes(used)} / ${fmtBytes(total || -1)}`
-    const quotaPct = document.getElementById('quota-pct')
-    if (quotaPct) quotaPct.textContent = pct ? pct + '%' : ''
+    if (quotaText) quotaText.textContent = `${fmtBytes(used)} / ${fmtBytes(total > 0 ? total : -1)}`
     const bar = document.getElementById('quota-bar')
     if (bar) bar.style.width = pct + '%'
     const expire = document.getElementById('quota-expire')
-    if (expire) expire.textContent = `${daysLeft(q.expireUnix)} дн.`
+    if (expire) expire.textContent = expireLabel(q.expireUnix)
+    const quotaCard = content.querySelector('.quota-card')
+    if (quotaCard) {
+      quotaCard.classList.toggle('is-expired', !!q.expired)
+      quotaCard.classList.toggle('menu-open', !!state.quotaMenuOpen)
+    }
+    const quotaMenu = document.getElementById('quota-profile-menu')
+    if (quotaMenu) quotaMenu.classList.toggle('open', !!state.quotaMenuOpen)
     const serverTitle = document.getElementById('server-title')
-    if (serverTitle) serverTitle.textContent = node || 'Автовыбор'
+    if (serverTitle) {
+      if (warpOn && node) {
+        serverTitle.innerHTML = `<span class="node-title-row">${icons.lock}<span class="warp-chain">WARP →</span>${formatNodeTitleHTML(node)}</span>`
+      } else {
+        serverTitle.innerHTML = node ? formatNodeTitleHTML(node) : 'Автовыбор'
+      }
+    }
     const serverSub = document.getElementById('server-sub')
-    if (serverSub) serverSub.textContent = `${nodeKind(nodeInfo?.type)} · нажмите, чтобы выбрать`
+    if (serverSub) {
+      if (node === 'AUTO' || String(nodeInfo?.type || '').toLowerCase() === 'urltest') {
+        serverSub.textContent = nodeSubtitle(nodeInfo || { name: 'AUTO', type: 'URLTest', now: nodeInfo?.now })
+      } else {
+        serverSub.textContent = `${nodeKind(nodeInfo?.type)} · нажмите, чтобы выбрать`
+      }
+    }
     const serverFlag = document.getElementById('server-flag')
-    if (serverFlag) serverFlag.textContent = nodeInitials(node || 'AU')
+    if (serverFlag) {
+      serverFlag.innerHTML = (node ? nodeBadgeHTML(node) : 'AU') + (warpOn ? `<span class="warp-cloud" title="Cloudflare WARP">${icons.cloudflare}</span>` : '')
+    }
+  }
+
+  function patchNodeRow(name) {
+    if (state.view !== 'nodes') return
+    const row = Array.from(content.querySelectorAll('.node-item')).find(
+      (el) => el.getAttribute('data-node') === name
+    )
+    if (!row) return
+    const node = (state.nodes || []).find((n) => n.name === name) || { name, delay: state.delayMap[name] || 0 }
+    const delay = state.delayMap[name] ?? node.delay ?? 0
+    const pinging = !!state.pinging[name]
+    row.classList.toggle('is-pinging', pinging)
+    row.classList.toggle('active', state.currentNode === name)
+    const badge = row.querySelector('.badge')
+    if (badge) {
+      const tmp = document.createElement('div')
+      tmp.innerHTML = delayBadgeHTML(delay, pinging)
+      badge.replaceWith(tmp.firstElementChild)
+    }
+    const sub = row.querySelector('.node-sub')
+    if (sub && node) sub.textContent = nodeSubtitle({ ...node, delay })
+    const title = row.querySelector('.node-title')
+    if (title && node) title.innerHTML = formatNodeTitleHTML(node.name)
+  }
+
+  function onNodePingEvent(payload) {
+    const name = payload?.name
+    if (!name) return
+    if (payload.phase === 'start') {
+      state.pinging[name] = true
+      patchNodeRow(name)
+      return
+    }
+    if (payload.phase === 'done') {
+      delete state.pinging[name]
+      const delay = Number(payload.delay || 0)
+      state.delayMap[name] = delay
+      state.nodes = (state.nodes || []).map((n) => (n.name === name ? { ...n, delay } : n))
+      patchNodeRow(name)
+      paintLive()
+    }
+  }
+
+  function bindPingEvents() {
+    const rt = window.runtime
+    if (!rt?.EventsOn || bindPingEvents.done) return
+    bindPingEvents.done = true
+    rt.EventsOn('node:ping', onNodePingEvent)
+    rt.EventsOn('deeplink', (payload) => {
+      const ok = !!payload?.ok
+      const msg = payload?.message || (ok ? 'Deep link' : 'Ошибка deep link')
+      showToast(msg, ok)
+      if (ok && (payload?.kind === 'import' || payload?.kind === 'connect' || payload?.kind === 'disconnect' || payload?.kind === 'toggle')) {
+        refresh({ force: true, soft: false }).catch(() => {})
+      }
+    })
+  }
+
+  async function refreshPublicIP({ force = false } = {}) {
+    if (!bridge.GetPublicIP) return
+    const connected = state.status.state === 'connected'
+    if (!connected) {
+      state.publicIP = ''
+      if (state.status) state.status.publicIP = ''
+      const ipEl = document.getElementById('public-ip-value')
+      if (ipEl) ipEl.textContent = '-'
+      return
+    }
+    if (!force && state.publicIP && state.status.publicIPReady) {
+      const ipEl = document.getElementById('public-ip-value')
+      if (ipEl) ipEl.textContent = state.publicIP
+      return
+    }
+    try {
+      const res = await bridge.GetPublicIP()
+      const masked = res?.masked || '-'
+      state.publicIP = masked
+      if (state.status) {
+        state.status.publicIP = masked
+        state.status.publicIPReady = !!res?.ip
+      }
+      const ipEl = document.getElementById('public-ip-value')
+      if (ipEl) ipEl.textContent = masked
+    } catch (_) {
+      const ipEl = document.getElementById('public-ip-value')
+      if (ipEl && !state.publicIP) ipEl.textContent = '-'
+    }
   }
 
   function paintLive() {
     paintChrome()
     patchHomeLive()
+    if (state.view === 'logs') {
+      const el = document.getElementById('logs-view')
+      if (el && state.logs) {
+        const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40
+        el.textContent = filteredLogs(state)
+        if (atBottom) el.scrollTop = el.scrollHeight
+      }
+    }
+  }
+
+  async function loadLogs() {
+    try {
+      state.logs = (await bridge.GetLogsTail(250)) || ''
+    } catch (_) {
+      state.logs = state.logs || 'Не удалось прочитать лог'
+    }
   }
 
   function paintContent({ force = false } = {}) {
@@ -748,6 +1599,7 @@ async function boot() {
     }
     content.innerHTML = renderView(state)
     state.formDirty = false
+    enhanceSelects(content)
     paintChrome()
     if (state.message) showToast(state.message, state.messageOk)
   }
@@ -755,7 +1607,10 @@ async function boot() {
   async function loadData({ soft = false } = {}) {
     if (soft) {
       state.status = await bridge.GetStatus()
-      if (state.view === 'nodes' && state.status.state === 'connected') {
+      if (state.status.publicIP) state.publicIP = state.status.publicIP
+      if (state.view === 'logs') {
+        await loadLogs()
+      } else if (state.view === 'nodes' && state.status.state === 'connected') {
         try {
           const nodes = await bridge.ListNodes()
           const currentNode = (await bridge.CurrentNode()) || state.status.selectedNode || ''
@@ -777,6 +1632,7 @@ async function boot() {
       } else {
         state.currentNode = state.status.selectedNode || state.currentNode || ''
       }
+      if (state.view === 'home') refreshPublicIP().catch(() => {})
       return
     }
 
@@ -786,6 +1642,7 @@ async function boot() {
       bridge.GetSettings(),
     ])
     state.status = status
+    if (status.publicIP) state.publicIP = status.publicIP
     state.profiles = profiles || []
     if (!(state.formDirty && state.view === 'settings')) {
       state.settings = settings || {}
@@ -805,6 +1662,8 @@ async function boot() {
     }
     state.nodes = nodes
     state.currentNode = currentNode
+    if (state.view === 'logs') await loadLogs()
+    if (state.view === 'home') refreshPublicIP({ force: true }).catch(() => {})
   }
 
   async function refresh({ force = false, soft = true } = {}) {
@@ -815,12 +1674,55 @@ async function boot() {
 
   async function setView(view) {
     if (!titles[view]) view = 'home'
+    // Flush pending settings before leaving the page.
+    if (state.view === 'settings' && settingsSaveTimer) {
+      window.clearTimeout(settingsSaveTimer)
+      settingsSaveTimer = 0
+      const form = document.getElementById('settings-form')
+      if (form) {
+        try { await persistSettingsForm(form) } catch (_) {}
+      }
+    }
     state.view = view
     state.formDirty = false
     if (view !== 'settings') state.settingsSection = ''
     await loadData({ soft: false })
     paintContent({ force: true })
   }
+
+  let settingsSaveTimer = 0
+  let settingsSaveSeq = 0
+
+  async function persistSettingsForm(form) {
+    if (!form || !bridge?.SaveSettings) return
+    const fd = new FormData(form)
+    const section = form.getAttribute('data-section') || state.settingsSection
+    const next = collectSettingsPatch(section, fd, state.settings)
+    const seq = ++settingsSaveSeq
+    try {
+      await bridge.SaveSettings(next)
+      if (seq !== settingsSaveSeq) return
+      state.settings = next
+      // Keep formDirty so soft refresh doesn't wipe caret / open details.
+      state.formDirty = true
+      await refresh({ soft: true })
+    } catch (err) {
+      if (seq !== settingsSaveSeq) return
+      showToast(friendlyError(err), false)
+    }
+  }
+
+  function scheduleSettingsAutosave(form) {
+    window.clearTimeout(settingsSaveTimer)
+    settingsSaveTimer = window.setTimeout(() => {
+      settingsSaveTimer = 0
+      persistSettingsForm(form).catch(() => {})
+    }, 450)
+  }
+
+  // Paint + wire clicks before any backend await (hang must not block UI).
+  bindPingEvents()
+  paintContent({ force: true })
 
   root.addEventListener('input', (e) => {
     if (e.target.id === 'node-search') {
@@ -835,24 +1737,125 @@ async function boot() {
       }
       return
     }
-    if (e.target.closest('form, input, textarea, select')) state.formDirty = true
+    if (e.target.id === 'log-query') {
+      state.logQuery = e.target.value
+      const el = document.getElementById('logs-view')
+      if (el) el.textContent = filteredLogs(state)
+      return
+    }
+    const form = e.target.closest('#settings-form')
+    if (form) {
+      state.formDirty = true
+      scheduleSettingsAutosave(form)
+    }
   })
   root.addEventListener('change', (e) => {
-    if (e.target.closest('form, input, textarea, select')) state.formDirty = true
+    if (e.target.id === 'log-level') {
+      state.logLevel = e.target.value || 'all'
+      const el = document.getElementById('logs-view')
+      if (el) el.textContent = filteredLogs(state)
+      return
+    }
+    if (e.target.id === 'log-time') {
+      state.logTime = e.target.value || 'all'
+      const el = document.getElementById('logs-view')
+      if (el) el.textContent = filteredLogs(state)
+      return
+    }
+    const form = e.target.closest('#settings-form')
+    if (form) {
+      state.formDirty = true
+      window.clearTimeout(settingsSaveTimer)
+      settingsSaveTimer = 0
+      persistSettingsForm(form).catch(() => {})
+    }
   })
 
   root.addEventListener('click', async (e) => {
+    if (!e.target.closest('.cselect')) {
+      root.querySelectorAll('.cselect.open').forEach((el) => el.classList.remove('open'))
+    }
+    if (!e.target.closest('.quota-profile-wrap')) {
+      if (state.quotaMenuOpen) {
+        state.quotaMenuOpen = false
+        const menu = document.getElementById('quota-profile-menu')
+        const card = content.querySelector('.quota-card')
+        if (menu) menu.classList.remove('open')
+        if (card) card.classList.remove('menu-open')
+      }
+    }
+
     const nav = e.target.closest('[data-view]')
     if (nav) {
+      state.quotaMenuOpen = false
       await setView(nav.getAttribute('data-view'))
       return
     }
 
     const settingsSectionBtn = e.target.closest('[data-settings-section]')
     if (settingsSectionBtn && state.view === 'settings') {
+      if (settingsSaveTimer) {
+        window.clearTimeout(settingsSaveTimer)
+        settingsSaveTimer = 0
+        const form = document.getElementById('settings-form')
+        if (form) {
+          try { await persistSettingsForm(form) } catch (_) {}
+        }
+      }
       state.settingsSection = settingsSectionBtn.getAttribute('data-settings-section') || ''
       state.formDirty = false
       paintContent({ force: true })
+      return
+    }
+
+    const appRemove = e.target.closest('[data-app-remove]')
+    if (appRemove) {
+      e.preventDefault()
+      removeAppFromRouteList(appRemove.getAttribute('data-app-remove') || '')
+      return
+    }
+    const appAdd = e.target.closest('[data-app-add]')
+    if (appAdd) {
+      e.preventDefault()
+      addAppToRouteList(appAdd.getAttribute('data-app-add') || '')
+      appAdd.classList.add('on')
+      return
+    }
+    const actionBtn = e.target.closest('[data-action]')
+    if (actionBtn) {
+      const act = actionBtn.getAttribute('data-action')
+      if (act === 'pick-apps') {
+        e.preventDefault()
+        await openAppPicker()
+        return
+      }
+      if (act === 'close-app-picker') {
+        e.preventDefault()
+        const picker = document.getElementById('app-picker')
+        if (picker) picker.classList.add('hidden')
+        return
+      }
+      if (act === 'add-app-manual') {
+        e.preventDefault()
+        const name = window.prompt('Имя процесса (например AyuGram.exe):', '')
+        if (name) addAppToRouteList(name)
+        return
+      }
+    }
+
+    const sortBtn = e.target.closest('[data-node-sort]')
+    if (sortBtn && state.view === 'nodes') {
+      const next = sortBtn.getAttribute('data-node-sort') === 'name' ? 'name' : 'ping'
+      if (state.nodeSort !== next) {
+        state.nodeSort = next
+        paintContent({ force: true })
+        const search = document.getElementById('node-search')
+        if (search) {
+          const val = search.value
+          search.focus()
+          search.setSelectionRange(val.length, val.length)
+        }
+      }
       return
     }
 
@@ -873,8 +1876,21 @@ async function boot() {
         paintLive()
         await bridge.ToggleConnect()
         state.busy = false
+        state.publicIP = ''
         await refresh({ force: true })
+        refreshPublicIP({ force: true }).catch(() => {})
         showToast(state.status.state === 'connected' ? 'Подключено' : 'Отключено', true)
+        return
+      }
+      if (action === 'generate-warp') {
+        showToast('Генерирую WARP…', true)
+        const res = await bridge.GenerateWARPConfig()
+        if (res?.privateKey) {
+          state.settings = { ...(state.settings || {}), warpPrivateKey: res.privateKey, warpLocalAddress: res.localAddress || state.settings.warpLocalAddress }
+        }
+        showToast('Конфиг WARP готов', true)
+        await refresh({ force: true, soft: false })
+        if (state.view === 'settings') paintContent({ force: true })
         return
       }
       if (action === 'go-home') { await setView('home'); return }
@@ -890,6 +1906,34 @@ async function boot() {
         return
       }
       if (action === 'quit') { await bridge.QuitApp?.(); return }
+      if (action === 'refresh-logs') {
+        await loadLogs()
+        paintContent({ force: true })
+        return
+      }
+      if (action === 'toggle-quota-menu') {
+        state.quotaMenuOpen = !state.quotaMenuOpen
+        const menu = document.getElementById('quota-profile-menu')
+        const card = content.querySelector('.quota-card')
+        if (menu) menu.classList.toggle('open', state.quotaMenuOpen)
+        if (card) card.classList.toggle('menu-open', state.quotaMenuOpen)
+        return
+      }
+      if (action === 'sync-active') {
+        const name = state.status.activeProfile
+        const profile = (state.profiles || []).find((p) => p.name === name)
+        showToast('Обновляю подписку…', true)
+        if (profile?.subscriptionURL) {
+          await bridge.SyncSubscription(name)
+          showToast('Подписка обновлена', true)
+        } else {
+          const n = await bridge.SyncAllSubscriptions()
+          showToast(n ? `Обновлено: ${n}` : 'Нет подписок для обновления', !!n)
+        }
+        state.quotaMenuOpen = false
+        await refresh({ force: true })
+        return
+      }
       if (action === 'sync-all') {
         showToast('Обновляю подписки…', true)
         const n = await bridge.SyncAllSubscriptions()
@@ -899,9 +1943,12 @@ async function boot() {
       }
       if (action === 'test-all') {
         showToast('Проверяю серверы…', true)
+        state.pinging = {}
+        if (state.view === 'nodes') paintContent({ force: true })
         const results = await bridge.TestAllNodes()
         Object.keys(state.delayMap).forEach((k) => delete state.delayMap[k])
         for (const r of results || []) state.delayMap[r.name] = r.delay || 0
+        state.pinging = {}
         const ok = (results || []).filter((r) => r.delay > 0).length
         showToast(`Доступны ${ok} из ${(results || []).length}`, true)
         await refresh({ force: true })
@@ -920,6 +1967,7 @@ async function boot() {
         return
       }
       if (profile) {
+        state.quotaMenuOpen = false
         await bridge.SetActiveProfile(profile)
         showToast(`Выбран профиль «${profile}»`, true)
         await refresh({ force: true })
@@ -941,8 +1989,15 @@ async function boot() {
       }
       if (node) {
         await bridge.SelectNode(node)
-        showToast('Сервер выбран', true)
+        state.publicIP = ''
+        if (node === 'AUTO') {
+          showToast('AUTO: выбираю лучший сервер…', true)
+          state.pinging.AUTO = true
+        } else {
+          showToast('Сервер выбран', true)
+        }
         await setView('home')
+        refreshPublicIP({ force: true }).catch(() => {})
         return
       }
     } catch (err) {
@@ -965,8 +2020,22 @@ async function boot() {
         await bridge.ImportProfileText(name, '', raw)
         state.showImport = false
         state.formDirty = false
-        showToast('Профиль добавлен', true)
+        showToast('Профиль добавлен, проверяю пинг…', true)
         await refresh({ force: true })
+        try {
+          state.pinging = {}
+          if (state.view === 'nodes') paintContent({ force: true })
+          const results = await bridge.ConnectAndProbe()
+          Object.keys(state.delayMap).forEach((k) => delete state.delayMap[k])
+          for (const r of results || []) state.delayMap[r.name] = r.delay || 0
+          state.pinging = {}
+          const ok = (results || []).filter((r) => r.delay > 0).length
+          showToast(ok ? `Пинг готов: ${ok} из ${(results || []).length}` : 'Профиль добавлен', true)
+          await setView('nodes')
+        } catch (probeErr) {
+          state.pinging = {}
+          showToast('Профиль добавлен. Пинг: ' + friendlyError(probeErr), false)
+        }
       } catch (err) {
         showToast(friendlyError(err), false)
       }
@@ -974,23 +2043,40 @@ async function boot() {
     }
     if (e.target.id === 'settings-form') {
       e.preventDefault()
-      const fd = new FormData(e.target)
-      const section = e.target.getAttribute('data-section') || state.settingsSection
-      try {
-        const next = collectSettingsPatch(section, fd, state.settings)
-        await bridge.SaveSettings(next)
-        state.settings = next
-        state.formDirty = false
-        showToast('Настройки сохранены', true)
-        await refresh({ force: true, soft: false })
-      } catch (err) {
-        showToast(friendlyError(err), false)
-      }
+      window.clearTimeout(settingsSaveTimer)
+      persistSettingsForm(e.target).catch(() => {})
     }
   })
 
-  await refresh({ force: true, soft: false })
-  setInterval(() => { refresh({ soft: true }).catch(() => {}) }, 2500)
+  // Resolve real Wails bindings, then load data (clicks already work).
+  api().then((b) => {
+    bridge = b
+    return refresh({ force: true, soft: false })
+  }).catch((err) => {
+    showToast(friendlyError(err), false)
+    paintContent({ force: true })
+  })
+  setInterval(() => { refresh({ soft: true }).catch(() => {}) }, 2000)
+  setInterval(async () => {
+    if (state.status.state !== 'connected' || !bridge.GetTraffic) return
+    try {
+      const t = await bridge.GetTraffic()
+      if (!t) return
+      state.status.speedUp = Number(t.up || 0)
+      state.status.speedDown = Number(t.down || 0)
+      const downEl = document.getElementById('speed-down')
+      const upEl = document.getElementById('speed-up')
+      if (downEl) downEl.textContent = fmtRate(state.status.speedDown)
+      if (upEl) upEl.textContent = fmtRate(state.status.speedUp)
+    } catch (_) {}
+  }, 1000)
 }
 
-boot()
+boot().catch((err) => {
+  const msg = String(err?.message || err || 'UI boot failed')
+  if (root) {
+    root.innerHTML = `<div style="padding:28px;color:#edf7ff;font-family:Segoe UI,sans-serif"><h2>Не удалось открыть интерфейс</h2><p style="opacity:.8">${msg}</p></div>`
+  } else {
+    document.body.textContent = msg
+  }
+})

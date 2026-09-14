@@ -66,7 +66,7 @@ func (f *Fetcher) Fetch(rawURL string) (Result, error) {
 		return Result{}, fmt.Errorf("subscription fetch status %d", resp.StatusCode)
 	}
 
-	nodes, err := parse.ParseSubscriptionBody(body)
+	nodes, err := parse.ParseSubscriptionBodyWithFetch(body, f.fetchProviderURL)
 	if err != nil {
 		return Result{}, err
 	}
@@ -89,6 +89,36 @@ func (f *Fetcher) Fetch(rawURL string) (Result, error) {
 		out.ProviderTitle = strings.Trim(v, `"' `)
 	}
 	return out, nil
+}
+
+func (f *Fetcher) fetchProviderURL(rawURL string) ([]byte, error) {
+	req, err := http.NewRequest(http.MethodGet, rawURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	ua := f.UserAgent
+	if ua == "" {
+		ua = defaults.UserAgent
+	}
+	req.Header.Set("User-Agent", ua)
+	req.Header.Set("Accept", "*/*")
+	client := f.HTTPClient
+	if client == nil {
+		client = http.DefaultClient
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("provider fetch status %d", resp.StatusCode)
+	}
+	return body, nil
 }
 
 // ParseUserInfoHeader parses Clash-style subscription-userinfo values.
@@ -119,10 +149,29 @@ func ParseUserInfoHeader(raw string) (profiles.Quota, string) {
 		case "total":
 			q.Total = n
 		case "expire":
-			q.ExpireUnix = n
+			q.ExpireUnix = NormalizeExpireUnix(n)
 		}
 	}
 	return q, raw
+}
+
+// NormalizeExpireUnix converts provider expire values to Unix seconds.
+// Some panels send milliseconds (or rarely microseconds); Hiddify-class #2330.
+func NormalizeExpireUnix(n int64) int64 {
+	if n <= 0 {
+		return 0
+	}
+	// Seconds for year ~2001..2286 fit under 1e10; ms for 2001+ are >= 1e12.
+	const msThreshold = int64(1_000_000_000_000)     // 1e12
+	const usThreshold = int64(1_000_000_000_000_000) // 1e15
+	switch {
+	case n >= usThreshold:
+		return n / 1_000_000
+	case n >= msThreshold:
+		return n / 1_000
+	default:
+		return n
+	}
 }
 
 func headerGet(h http.Header, key string) string {

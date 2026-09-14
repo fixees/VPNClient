@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"myinternetvpn/client/internal/defaults"
+	"myinternetvpn/client/internal/winutil"
 )
 
 // ApplyZip extracts a release zip next to the running executable and launches a
@@ -56,7 +57,8 @@ start "" "%%TARGET%%\%s"
 	if err := os.WriteFile(helperPath, []byte(script), 0o755); err != nil {
 		return "", err
 	}
-	cmd := exec.Command("cmd", "/C", "start", "", helperPath)
+	cmd := exec.Command("cmd", "/C", "start", "/MIN", "", helperPath)
+	winutil.HideConsole(cmd)
 	if err := cmd.Start(); err != nil {
 		return "", err
 	}

@@ -89,7 +89,7 @@ func (c *Checker) FindWindowsZip(rel Release) (ReleaseAsset, error) {
 		if strings.Contains(name, "windows") && strings.HasSuffix(name, ".zip") {
 			return a, nil
 		}
-		if strings.HasPrefix(name, strings.ToLower(defaults.ProductName)+"-") && strings.HasSuffix(name, ".zip") {
+		if strings.HasPrefix(name, strings.ToLower(defaults.ReleasePrefix)+"-") && strings.HasSuffix(name, ".zip") {
 			return a, nil
 		}
 	}

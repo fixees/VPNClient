@@ -15,5 +15,3 @@ func RequireAdminForTUN(tunEnabled bool) error { return nil }
 func MessageBox(title, text string, isError bool) {}
 
 func ActivateMainWindow(windowTitle string) bool { return false }
-
-func HandleSecondInstance(windowTitle string) {}

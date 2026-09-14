@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,17 +16,22 @@ import (
 	"myinternetvpn/client/internal/bundle"
 	"myinternetvpn/client/internal/config"
 	"myinternetvpn/client/internal/core"
+	"myinternetvpn/client/internal/deeplink"
 	"myinternetvpn/client/internal/defaults"
 	"myinternetvpn/client/internal/geo"
 	"myinternetvpn/client/internal/health"
 	"myinternetvpn/client/internal/integrity"
+	"myinternetvpn/client/internal/latency"
+	"myinternetvpn/client/internal/netinfo"
 	"myinternetvpn/client/internal/parse"
 	"myinternetvpn/client/internal/paths"
 	"myinternetvpn/client/internal/profiles"
 	"myinternetvpn/client/internal/subscription"
 	"myinternetvpn/client/internal/update"
+	"myinternetvpn/client/internal/warp"
 	"myinternetvpn/client/internal/winutil"
 
+	"github.com/getlantern/systray"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -47,6 +53,29 @@ type App struct {
 	proxySnap  winutil.SystemProxySnapshot
 	proxyOn    bool
 
+	ipMu      sync.Mutex
+	cachedIP  string
+	cachedAt  time.Time
+	cachedVia bool // fetched through mixed proxy
+
+	statusMu      sync.Mutex
+	statusCache   map[string]any
+	statusCacheAt time.Time
+	isAdmin       bool
+
+	logTailMu   sync.Mutex
+	logTailText string
+	logTailAt   time.Time
+	logClientSt os.FileInfo
+	logCoreSt   os.FileInfo
+
+	trayMu     sync.Mutex
+	trayReady  bool
+	trayToggle *systray.MenuItem
+
+	startupDeepLink string
+	deeplinkMu      sync.Mutex
+
 	mu sync.Mutex
 }
 
@@ -56,6 +85,13 @@ func NewApp() *App {
 		dnsGuard:   winutil.NewDNSLeakGuard(),
 		subs:       subscription.NewFetcher(),
 	}
+}
+
+// SetStartupDeepLink stores a myvpn:// URL received on process start.
+func (a *App) SetStartupDeepLink(link string) {
+	a.deeplinkMu.Lock()
+	a.startupDeepLink = strings.TrimSpace(link)
+	a.deeplinkMu.Unlock()
 }
 
 func (a *App) startup(ctx context.Context) {
@@ -129,6 +165,24 @@ func (a *App) startup(ctx context.Context) {
 		a.scheduler.Start()
 	}
 	a.startTray()
+
+	// Recover from crash / hard power-off: sticky firewall rules + orphan WinINET proxy.
+	a.recoverOrphanNetworkState()
+
+	if err := winutil.RegisterURLProtocols(); err != nil {
+		if a.log != nil {
+			a.log.Warn("register URL protocols: %v", err)
+		}
+	} else if a.log != nil {
+		a.log.Info("URL schemes registered: %s:// %s://", defaults.URLScheme, defaults.URLSchemeAlt)
+	}
+
+	// Windows Run key launches us with --autostart → connect if a profile is selected.
+	if winutil.HasCLIFlag("--autostart") {
+		go a.autostartConnect()
+	}
+
+	go a.consumeDeepLinks()
 }
 
 func (a *App) shutdown(ctx context.Context) {
@@ -165,7 +219,9 @@ func (a *App) GetStatus() map[string]any {
 
 	if manager != nil && apiClient != nil && manager.Running() {
 		state = "connected"
-		live := apiClient.Live(context.Background())
+		ctx, cancel := context.WithTimeout(context.Background(), defaults.APITimeout)
+		live := apiClient.Live(ctx)
+		cancel()
 		coreVersion = live.Version
 		if live.Mode != "" {
 			mode = live.Mode
@@ -175,12 +231,15 @@ func (a *App) GetStatus() map[string]any {
 	}
 
 	active := ""
-	list, _ := store.List()
+	list := []profiles.Profile{}
+	if store != nil {
+		list, _ = store.List()
+	}
 	var quota map[string]any
 	subURL := ""
 	lastSync := ""
 	expireUnix := int64(0)
-	if settings != nil {
+	if settings != nil && store != nil {
 		active = settings.ActiveProfile
 		if active != "" {
 			if p, err := store.Get(active); err == nil {
@@ -216,6 +275,16 @@ func (a *App) GetStatus() map[string]any {
 		"isAdmin":                winutil.IsAdmin(),
 		"product":                defaults.ProductName,
 		"appVersion":             version,
+		"publicIP":               a.cachedPublicIPMasked(state == "connected"),
+		"publicIPReady":          a.hasFreshPublicIP(state == "connected"),
+		"warpEnabled":            settings != nil && settings.WARPEnabled,
+		"warpMode":               "",
+	}
+	if settings != nil {
+		out["warpMode"] = settings.WARPMode
+		if settings.WARPMode == "" {
+			out["warpMode"] = defaults.WARPModeViaProxy
+		}
 	}
 	if settings != nil {
 		out["mixedPort"] = settings.MixedPort
@@ -234,6 +303,78 @@ func (a *App) GetStatus() map[string]any {
 	return out
 }
 
+func (a *App) clearPublicIPCache() {
+	a.ipMu.Lock()
+	a.cachedIP = ""
+	a.cachedAt = time.Time{}
+	a.cachedVia = false
+	a.ipMu.Unlock()
+}
+
+func (a *App) hasFreshPublicIP(viaProxy bool) bool {
+	a.ipMu.Lock()
+	defer a.ipMu.Unlock()
+	return a.cachedIP != "" && a.cachedVia == viaProxy && time.Since(a.cachedAt) < 45*time.Second
+}
+
+func (a *App) cachedPublicIPMasked(viaProxy bool) string {
+	a.ipMu.Lock()
+	defer a.ipMu.Unlock()
+	if a.cachedIP == "" || a.cachedVia != viaProxy {
+		return ""
+	}
+	if time.Since(a.cachedAt) > 2*time.Minute {
+		return ""
+	}
+	return netinfo.MaskIP(a.cachedIP)
+}
+
+// GetPublicIP returns the current public IP (masked for UI) and raw value for diagnostics.
+// When connected, the lookup goes through the local mixed proxy (exit IP).
+func (a *App) GetPublicIP() map[string]any {
+	viaProxy := a.manager != nil && a.manager.Running()
+	mixed := 0
+	if viaProxy && a.settings != nil && a.settings.MixedPort > 0 {
+		mixed = a.settings.MixedPort
+	} else if viaProxy {
+		mixed = defaults.MixedPort
+	}
+
+	a.ipMu.Lock()
+	if a.cachedIP != "" && a.cachedVia == viaProxy && time.Since(a.cachedAt) < 45*time.Second {
+		ip := a.cachedIP
+		a.ipMu.Unlock()
+		return map[string]any{
+			"ip":      ip,
+			"masked":  netinfo.MaskIP(ip),
+			"viaProxy": viaProxy,
+		}
+	}
+	a.ipMu.Unlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	ip, err := netinfo.LookupPublicIP(ctx, mixed)
+	if err != nil || ip == "" {
+		return map[string]any{
+			"ip":      "",
+			"masked":  "-",
+			"viaProxy": viaProxy,
+			"error":   fmt.Sprint(err),
+		}
+	}
+	a.ipMu.Lock()
+	a.cachedIP = ip
+	a.cachedAt = time.Now()
+	a.cachedVia = viaProxy
+	a.ipMu.Unlock()
+	return map[string]any{
+		"ip":       ip,
+		"masked":   netinfo.MaskIP(ip),
+		"viaProxy": viaProxy,
+	}
+}
+
 func (a *App) proxyGroup() string {
 	if a.settings != nil && strings.TrimSpace(a.settings.ProxyGroup) != "" {
 		return a.settings.ProxyGroup
@@ -242,7 +383,52 @@ func (a *App) proxyGroup() string {
 }
 
 func (a *App) GetSettings() *profiles.Settings {
+	if a.settings == nil {
+		return profiles.DefaultSettings()
+	}
 	return a.settings
+}
+
+// GenerateWARPConfig registers a free Cloudflare WARP account and stores keys in settings.
+func (a *App) GenerateWARPConfig() (map[string]any, error) {
+	a.mu.Lock()
+	license := ""
+	if a.settings != nil {
+		license = a.settings.WARPLicenseKey
+	}
+	a.mu.Unlock()
+
+	acc, err := warp.Register(license)
+	if err != nil {
+		return nil, err
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.settings == nil {
+		a.settings = profiles.DefaultSettings()
+	}
+	a.settings.WARPPrivateKey = acc.PrivateKey
+	a.settings.WARPLocalAddress = acc.LocalAddress
+	if a.settings.WARPPublicKey == "" {
+		a.settings.WARPPublicKey = defaults.WARPPublicKey
+	}
+	if a.settings.WARPEndpoint == "" {
+		a.settings.WARPEndpoint = defaults.WARPEndpoint
+	}
+	if a.settings.WARPMode == "" {
+		a.settings.WARPMode = defaults.WARPModeViaProxy
+	}
+	_ = profiles.SaveSettings(a.paths.SettingsFile(), a.settings)
+	if a.log != nil {
+		a.log.Info("WARP config generated type=%s", acc.AccountType)
+	}
+	return map[string]any{
+		"privateKey":   acc.PrivateKey,
+		"localAddress": acc.LocalAddress,
+		"accountType":  acc.AccountType,
+		"clientId":     acc.ClientID,
+	}, nil
 }
 
 func (a *App) SaveSettings(s profiles.Settings) error {
@@ -259,7 +445,10 @@ func (a *App) SaveSettings(s profiles.Settings) error {
 		return fmt.Errorf("mixed port must be 1024–65535")
 	}
 	if s.WARPEnabled && strings.TrimSpace(s.WARPPrivateKey) == "" {
-		return fmt.Errorf("для WARP нужен WireGuard private key")
+		return fmt.Errorf("для WARP нужен конфиг — нажмите «Сгенерировать»")
+	}
+	if s.SelectedNode == defaults.WARPProxyName {
+		s.SelectedNode = defaults.AutoGroup
 	}
 
 	a.mu.Lock()
@@ -317,6 +506,12 @@ func coreSettingsChanged(prev, next *profiles.Settings) bool {
 		prev.LogLevel != next.LogLevel ||
 		prev.BypassLAN != next.BypassLAN ||
 		prev.BypassGEOIP != next.BypassGEOIP ||
+		prev.RouteDirect != next.RouteDirect ||
+		prev.RouteBlock != next.RouteBlock ||
+		prev.RouteProxy != next.RouteProxy ||
+		prev.RouteWhitelist != next.RouteWhitelist ||
+		prev.AppRouteMode != next.AppRouteMode ||
+		prev.AppRouteList != next.AppRouteList ||
 		prev.DNSEnhancedMode != next.DNSEnhancedMode ||
 		prev.DNSNameservers != next.DNSNameservers ||
 		prev.DNSFallbacks != next.DNSFallbacks ||
@@ -325,10 +520,21 @@ func coreSettingsChanged(prev, next *profiles.Settings) bool {
 		prev.TCPConcurrent != next.TCPConcurrent ||
 		prev.UnifiedDelay != next.UnifiedDelay ||
 		prev.WARPEnabled != next.WARPEnabled ||
+		prev.WARPMode != next.WARPMode ||
 		prev.WARPPrivateKey != next.WARPPrivateKey ||
 		prev.WARPLocalAddress != next.WARPLocalAddress ||
 		prev.WARPEndpoint != next.WARPEndpoint ||
 		prev.WARPPublicKey != next.WARPPublicKey ||
+		prev.WARPLicenseKey != next.WARPLicenseKey ||
+		prev.WARPCleanIP != next.WARPCleanIP ||
+		prev.WARPPort != next.WARPPort ||
+		prev.WARPNoiseCount != next.WARPNoiseCount ||
+		prev.WARPNoiseMode != next.WARPNoiseMode ||
+		prev.WARPNoiseSize != next.WARPNoiseSize ||
+		prev.WARPNoiseDelay != next.WARPNoiseDelay ||
+		prev.URLTestPreset != next.URLTestPreset ||
+		prev.URLTestURL != next.URLTestURL ||
+		prev.URLTestIntervalSec != next.URLTestIntervalSec ||
 		prev.KillSwitch != next.KillSwitch ||
 		prev.DNSLeakProtection != next.DNSLeakProtection ||
 		prev.UseSystemProxy != next.UseSystemProxy ||
@@ -361,6 +567,10 @@ func (a *App) SetMode(mode string) error {
 	return nil
 }
 
+func (a *App) ListRunningApps() ([]winutil.RunningApp, error) {
+	return winutil.ListRunningApps()
+}
+
 func (a *App) ListProfiles() ([]profiles.Profile, error) {
 	return a.store.List()
 }
@@ -385,7 +595,10 @@ func (a *App) ImportProfileText(name, note, raw string) error {
 	if name == "" {
 		name = "Imported"
 	}
-	return a.UpsertProfile(profiles.Profile{Name: name, Note: note, Proxies: nodes})
+	if err := a.UpsertProfile(profiles.Profile{Name: name, Note: note, Proxies: nodes}); err != nil {
+		return err
+	}
+	return a.SetActiveProfile(name)
 }
 
 // ImportSubscription downloads an http(s) subscription URL into a profile.
@@ -604,10 +817,16 @@ func (a *App) Connect() error {
 		}
 		a.proxySnap = snap
 		a.proxyOn = true
+		_ = a.saveProxySnapshot(snap, a.settings.MixedPort)
 	}
 
 	if a.settings.KillSwitch {
-		if err := a.killSwitch.Enable(a.settings.VPNInterface); err != nil {
+		iface := strings.TrimSpace(a.settings.VPNInterface)
+		if iface == "" {
+			iface = defaults.DefaultVPNIface
+			a.settings.VPNInterface = iface
+		}
+		if err := a.killSwitch.Enable(iface); err != nil {
 			_ = a.cleanupNetwork()
 			_ = a.manager.Stop()
 			return fmt.Errorf("kill switch: %w", err)
@@ -632,7 +851,12 @@ func (a *App) Connect() error {
 			_ = a.api.CloseConnections()
 		}
 	}
+	if a.api != nil {
+		a.api.StartTrafficStream()
+	}
+	a.clearPublicIPCache()
 	a.log.Info("connected profile=%s tun=%v mode=%s", a.settings.ActiveProfile, a.settings.TUN, a.settings.Mode)
+	a.refreshTrayStatus()
 	return nil
 }
 
@@ -643,10 +867,16 @@ func (a *App) Disconnect() error {
 		a.health.Stop()
 	}
 	_ = a.cleanupNetwork()
-	if a.manager == nil {
-		return nil
+	if a.api != nil {
+		a.api.StopTrafficStream()
 	}
-	return a.manager.Stop()
+	a.clearPublicIPCache()
+	var err error
+	if a.manager != nil {
+		err = a.manager.Stop()
+	}
+	a.refreshTrayStatus()
+	return err
 }
 
 func (a *App) cleanupNetwork() error {
@@ -660,7 +890,228 @@ func (a *App) cleanupNetwork() error {
 		_ = winutil.RestoreSystemProxy(a.proxySnap)
 		a.proxyOn = false
 	}
+	_ = a.clearProxySnapshotFile()
 	return nil
+}
+
+type persistedProxySnapshot struct {
+	Port int                         `json:"port"`
+	Snap winutil.SystemProxySnapshot `json:"snap"`
+}
+
+func (a *App) proxySnapshotPath() string {
+	if a.paths == nil {
+		return ""
+	}
+	return filepath.Join(a.paths.DataDir(), "system-proxy.json")
+}
+
+func (a *App) saveProxySnapshot(snap winutil.SystemProxySnapshot, port int) error {
+	path := a.proxySnapshotPath()
+	if path == "" {
+		return nil
+	}
+	raw, err := json.Marshal(persistedProxySnapshot{Port: port, Snap: snap})
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, raw, 0o600)
+}
+
+func (a *App) loadProxySnapshot() (persistedProxySnapshot, bool) {
+	path := a.proxySnapshotPath()
+	if path == "" {
+		return persistedProxySnapshot{}, false
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return persistedProxySnapshot{}, false
+	}
+	var p persistedProxySnapshot
+	if err := json.Unmarshal(raw, &p); err != nil {
+		return persistedProxySnapshot{}, false
+	}
+	return p, true
+}
+
+func (a *App) clearProxySnapshotFile() error {
+	path := a.proxySnapshotPath()
+	if path == "" {
+		return nil
+	}
+	err := os.Remove(path)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
+// recoverOrphanNetworkState clears sticky firewall rules and leftover system proxy
+// after a crash / hard power-off (Hiddify-class #2306 / #2323).
+func (a *App) recoverOrphanNetworkState() {
+	if a.killSwitch != nil {
+		if err := a.killSwitch.Disable(); err != nil && a.log != nil {
+			a.log.Warn("startup kill-switch cleanup: %v", err)
+		}
+	}
+	if a.dnsGuard != nil {
+		if err := a.dnsGuard.Disable(); err != nil && a.log != nil {
+			a.log.Warn("startup dns-leak cleanup: %v", err)
+		}
+	}
+
+	if snap, ok := a.loadProxySnapshot(); ok {
+		if err := winutil.RestoreSystemProxy(snap.Snap); err != nil {
+			if a.log != nil {
+				a.log.Warn("startup proxy restore: %v", err)
+			}
+		} else if a.log != nil {
+			a.log.Info("restored system proxy from crash snapshot (port=%d)", snap.Port)
+		}
+		_ = a.clearProxySnapshotFile()
+	}
+
+	port := defaults.MixedPort
+	if a.settings != nil && a.settings.MixedPort > 0 {
+		port = a.settings.MixedPort
+	}
+	if cleared, err := winutil.ClearOurSystemProxy("127.0.0.1", port); err != nil {
+		if a.log != nil {
+			a.log.Warn("startup orphan proxy clear: %v", err)
+		}
+	} else if cleared && a.log != nil {
+		a.log.Info("cleared orphan system proxy 127.0.0.1:%d", port)
+	}
+}
+
+// autostartConnect runs after Windows logon launch (--autostart).
+func (a *App) autostartConnect() {
+	// Let Wails finish binding / tray before Connect (TUN + elevation already done).
+	time.Sleep(800 * time.Millisecond)
+	if a.ctx != nil && a.settings != nil && a.settings.CloseToTray {
+		runtime.WindowHide(a.ctx)
+	}
+	a.mu.Lock()
+	hasProfile := a.settings != nil && strings.TrimSpace(a.settings.ActiveProfile) != ""
+	profile := ""
+	if a.settings != nil {
+		profile = a.settings.ActiveProfile
+	}
+	a.mu.Unlock()
+	if !hasProfile {
+		if a.log != nil {
+			a.log.Info("autostart: no active profile, skip connect")
+		}
+		return
+	}
+	if a.manager != nil && a.manager.Running() {
+		return
+	}
+	if err := a.Connect(); err != nil {
+		if a.log != nil {
+			a.log.Warn("autostart connect failed: %v", err)
+		}
+		return
+	}
+	if a.log != nil {
+		a.log.Info("autostart connected profile=%s", profile)
+	}
+}
+
+func (a *App) consumeDeepLinks() {
+	// Wait for Wails bindings / tray.
+	time.Sleep(1200 * time.Millisecond)
+
+	a.deeplinkMu.Lock()
+	startup := a.startupDeepLink
+	a.startupDeepLink = ""
+	a.deeplinkMu.Unlock()
+	if startup != "" {
+		a.applyDeepLink(startup)
+	}
+
+	ticker := time.NewTicker(800 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-a.ctx.Done():
+			return
+		case <-ticker.C:
+			if link, ok := winutil.TakePendingDeepLink(); ok {
+				a.applyDeepLink(link)
+			}
+		}
+	}
+}
+
+func (a *App) applyDeepLink(raw string) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return
+	}
+	if a.log != nil {
+		a.log.Info("deep link: %s", applog.Redact(raw))
+	}
+	act, err := deeplink.Parse(raw)
+	if err != nil {
+		a.emitDeepLink("error", friendlyDeepLinkErr(err), "")
+		return
+	}
+	a.ShowWindow()
+
+	switch act.Kind {
+	case deeplink.KindOpen:
+		a.emitDeepLink("open", "Окно открыто", "")
+	case deeplink.KindConnect:
+		if err := a.Connect(); err != nil {
+			a.emitDeepLink("error", err.Error(), "")
+			return
+		}
+		a.emitDeepLink("connect", "Подключено", "")
+	case deeplink.KindDisconnect:
+		if err := a.Disconnect(); err != nil {
+			a.emitDeepLink("error", err.Error(), "")
+			return
+		}
+		a.emitDeepLink("disconnect", "Отключено", "")
+	case deeplink.KindToggle:
+		if err := a.ToggleConnect(); err != nil {
+			a.emitDeepLink("error", err.Error(), "")
+			return
+		}
+		a.emitDeepLink("toggle", "Состояние VPN переключено", "")
+	case deeplink.KindImport, deeplink.KindAdd:
+		name := strings.TrimSpace(act.Name)
+		if name == "" {
+			name = "Deep link"
+		}
+		if err := a.ImportProfileText(name, "", act.Data); err != nil {
+			a.emitDeepLink("error", err.Error(), "")
+			return
+		}
+		a.emitDeepLink("import", "Профиль импортирован: "+name, name)
+	default:
+		a.emitDeepLink("error", "Неизвестная команда deep link", "")
+	}
+}
+
+func (a *App) emitDeepLink(kind, message, profile string) {
+	if a.ctx == nil {
+		return
+	}
+	runtime.EventsEmit(a.ctx, "deeplink", map[string]any{
+		"kind":    kind,
+		"message": message,
+		"profile": profile,
+		"ok":      kind != "error",
+	})
+}
+
+func friendlyDeepLinkErr(err error) string {
+	if err == nil {
+		return "ошибка deep link"
+	}
+	return err.Error()
 }
 
 func (a *App) ToggleConnect() error {
@@ -672,14 +1123,20 @@ func (a *App) ToggleConnect() error {
 
 func (a *App) GetTraffic() map[string]any {
 	out := map[string]any{"up": 0, "down": 0, "totalUp": 0, "totalDown": 0}
-	if a.manager == nil || !a.manager.Running() {
+	if a.manager == nil || !a.manager.Running() || a.api == nil {
 		return out
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 800*time.Millisecond)
-	defer cancel()
-	if snap, err := a.api.TrafficOnce(ctx); err == nil {
-		out["up"] = snap.Up
-		out["down"] = snap.Down
+	a.api.StartTrafficStream()
+	if up, down, age, ok := a.api.CachedTraffic(); ok && age < 3*time.Second {
+		out["up"] = up
+		out["down"] = down
+	} else {
+		ctx, cancel := context.WithTimeout(context.Background(), defaults.TrafficSampleTimeout)
+		defer cancel()
+		if snap, err := a.api.TrafficOnce(ctx); err == nil {
+			out["up"] = snap.Up
+			out["down"] = snap.Down
+		}
 	}
 	if conn, err := a.api.Connections(); err == nil {
 		out["totalUp"] = conn.UploadTotal
@@ -798,16 +1255,35 @@ func (a *App) SelectNode(name string) error {
 	_ = a.api.CloseConnections()
 	a.settings.SelectedNode = name
 	_ = profiles.SaveSettings(a.paths.SettingsFile(), a.settings)
+	a.clearPublicIPCache()
 	a.log.Info("selected node=%s group=%s", name, group)
+	a.refreshTrayStatus()
+
+	// Wake url-test so AUTO starts measuring and picks a live node ASAP.
+	if name == defaults.AutoGroup {
+		go func() {
+			timeout := defaults.AutoGroupDelayFloorMS
+			if d, err := a.api.TestDelay(defaults.AutoGroup, a.probeURL(), timeout); err != nil {
+				// Fallback: group endpoint tests all members and refreshes url-test state.
+				if _, err2 := a.api.TestGroupDelay(defaults.AutoGroup, a.probeURL(), timeout); err2 != nil {
+					a.log.Warn("AUTO url-test: %v", err)
+				} else {
+					a.log.Info("AUTO group delay refreshed")
+				}
+			} else {
+				a.log.Info("AUTO url-test delay=%dms", d)
+			}
+		}()
+	}
 	return nil
 }
 
-// TestNodeDelay measures latency for a node.
+// TestNodeDelay measures latency for a node using configured ping method.
 func (a *App) TestNodeDelay(name string) (int, error) {
 	if a.manager == nil || !a.manager.Running() {
 		return 0, fmt.Errorf("not connected")
 	}
-	return a.api.TestDelay(name, "", defaults.URLTestTimeoutMS)
+	return a.probeNode(name)
 }
 
 // NodeDelayResult is one URL-test outcome.
@@ -817,7 +1293,99 @@ type NodeDelayResult struct {
 	Error string `json:"error,omitempty"`
 }
 
-// TestAllNodes runs URL-test against all selectable nodes (limited concurrency).
+func (a *App) probeURL() string {
+	if a.settings == nil {
+		return defaults.URLTestURL
+	}
+	return defaults.ResolveURLTestURL(a.settings.URLTestPreset, a.settings.URLTestURL)
+}
+
+func (a *App) probeMethod() string {
+	if a.settings == nil || a.settings.PingMethod == "" {
+		return defaults.DefaultPingMethod
+	}
+	return a.settings.PingMethod
+}
+
+func (a *App) probeNode(name string) (int, error) {
+	// AUTO / nested groups have no leaf server — always use controller delay API.
+	if name == defaults.AutoGroup {
+		if a.api == nil {
+			return 0, fmt.Errorf("api client required")
+		}
+		timeout := defaults.AutoGroupDelayFloorMS
+		d, err := a.api.TestDelay(name, a.probeURL(), timeout)
+		if err == nil {
+			return d, nil
+		}
+		// Group delay returns per-node map; use the best alive sample.
+		m, err2 := a.api.TestGroupDelay(name, a.probeURL(), timeout)
+		if err2 != nil {
+			return 0, err
+		}
+		best := 0
+		for _, v := range m {
+			if v > 0 && (best == 0 || v < best) {
+				best = v
+			}
+		}
+		return best, nil
+	}
+
+	proxy := profiles.ProxyNode{"name": name}
+	if a.settings != nil && a.settings.ActiveProfile != "" && a.store != nil {
+		if p, err := a.store.Get(a.settings.ActiveProfile); err == nil {
+			if found, ok := latency.FindProxy(p.Proxies, name); ok {
+				proxy = profiles.ProxyNode{}
+				for k, v := range found {
+					proxy[k] = v
+				}
+				proxy["name"] = name
+			}
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(defaults.URLTestTimeoutMS)*time.Millisecond+time.Second)
+	defer cancel()
+	mixed := defaults.MixedPort
+	if a.settings != nil && a.settings.MixedPort > 0 {
+		mixed = a.settings.MixedPort
+	}
+	return latency.Probe(ctx, latency.Options{
+		Method:    a.probeMethod(),
+		TestURL:   a.probeURL(),
+		Timeout:   time.Duration(defaults.URLTestTimeoutMS) * time.Millisecond,
+		MixedPort: mixed,
+		API:       a.api,
+		Proxy:     proxy,
+	})
+}
+
+func (a *App) emitNodePing(name, phase string, delay int, errMsg string) {
+	if a.ctx == nil {
+		return
+	}
+	payload := map[string]any{
+		"name":  name,
+		"phase": phase,
+		"delay": delay,
+	}
+	if errMsg != "" {
+		payload["error"] = errMsg
+	}
+	runtime.EventsEmit(a.ctx, "node:ping", payload)
+}
+
+// ConnectAndProbe connects (if needed) and runs latency tests for all nodes.
+func (a *App) ConnectAndProbe() ([]NodeDelayResult, error) {
+	if a.manager == nil || !a.manager.Running() {
+		if err := a.Connect(); err != nil {
+			return nil, err
+		}
+	}
+	return a.TestAllNodes()
+}
+
+// TestAllNodes runs latency tests against all selectable nodes (limited concurrency).
 func (a *App) TestAllNodes() ([]NodeDelayResult, error) {
 	nodes, err := a.ListNodes()
 	if err != nil {
@@ -827,6 +1395,14 @@ func (a *App) TestAllNodes() ([]NodeDelayResult, error) {
 		return []NodeDelayResult{}, nil
 	}
 
+	prev := ""
+	if a.settings != nil {
+		prev = a.settings.SelectedNode
+	}
+	if cur, err := a.CurrentNode(); err == nil && cur != "" {
+		prev = cur
+	}
+
 	type job struct {
 		name string
 	}
@@ -834,6 +1410,12 @@ func (a *App) TestAllNodes() ([]NodeDelayResult, error) {
 	results := make(chan NodeDelayResult, len(nodes))
 
 	workers := 5
+	method := a.probeMethod()
+	// HEAD/proxy-select must be serialized to avoid thrashing the active node.
+	if method == defaults.PingProxyHTTPHead {
+		workers = 1
+	}
+	// AUTO group test is heavy; keep a slot but serialize AUTO separately first.
 	if len(nodes) < workers {
 		workers = len(nodes)
 	}
@@ -843,21 +1425,20 @@ func (a *App) TestAllNodes() ([]NodeDelayResult, error) {
 		go func() {
 			defer wg.Done()
 			for j := range jobs {
-				d, err := a.api.TestDelay(j.name, "", defaults.URLTestTimeoutMS)
+				a.emitNodePing(j.name, "start", 0, "")
+				d, err := a.probeNode(j.name)
 				res := NodeDelayResult{Name: j.name, Delay: d}
 				if err != nil {
 					res.Error = err.Error()
 					res.Delay = 0
 				}
+				a.emitNodePing(j.name, "done", res.Delay, res.Error)
 				results <- res
 			}
 		}()
 	}
 	go func() {
 		for _, n := range nodes {
-			if n.Name == "AUTO" {
-				continue
-			}
 			jobs <- job{name: n.Name}
 		}
 		close(jobs)
@@ -869,18 +1450,24 @@ func (a *App) TestAllNodes() ([]NodeDelayResult, error) {
 	for r := range results {
 		out = append(out, r)
 	}
-	sort.SliceStable(out, func(i, j int) bool {
-		if out[i].Delay == 0 && out[j].Delay > 0 {
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Delay == 0 {
 			return false
 		}
-		if out[j].Delay == 0 && out[i].Delay > 0 {
+		if out[j].Delay == 0 {
 			return true
-		}
-		if out[i].Delay == out[j].Delay {
-			return out[i].Name < out[j].Name
 		}
 		return out[i].Delay < out[j].Delay
 	})
+
+	// Restore previous selection (mass ping with HEAD switches nodes).
+	if prev != "" && a.api != nil {
+		if err := a.api.SelectProxy(a.proxyGroup(), prev); err != nil {
+			a.log.Warn("restore node after ping: %v", err)
+		} else {
+			_ = a.api.CloseConnections()
+		}
+	}
 	return out, nil
 }
 
@@ -914,8 +1501,34 @@ func (a *App) ShouldCloseToTray() bool {
 	return a.settings == nil || a.settings.CloseToTray
 }
 
-// GetLogsTail returns the last N lines of client.log (best-effort).
+// GetLogsTail returns recent lines from client.log and mihomo.log.
 func (a *App) GetLogsTail(maxLines int) (string, error) {
-	path := filepath.Join(a.paths.DataDir(), "client.log")
-	return applog.Tail(path, maxLines)
+	if maxLines <= 0 {
+		maxLines = 200
+	}
+	clientPath := filepath.Join(a.paths.DataDir(), "client.log")
+	clientTail, err1 := applog.Tail(clientPath, maxLines)
+	coreTail, err2 := applog.Tail(filepath.Join(a.paths.CoreWorkDir(), "mihomo.log"), maxLines/2)
+
+	var b strings.Builder
+	b.WriteString("—— client.log ——\n")
+	if err1 != nil {
+		b.WriteString("(нет записей)\n")
+	} else if strings.TrimSpace(clientTail) == "" {
+		b.WriteString("(пусто)\n")
+	} else {
+		b.WriteString(clientTail)
+		if !strings.HasSuffix(clientTail, "\n") {
+			b.WriteByte('\n')
+		}
+	}
+	b.WriteString("\n—— mihomo.log ——\n")
+	if err2 != nil {
+		b.WriteString("(ядро ещё не писало лог)\n")
+	} else if strings.TrimSpace(coreTail) == "" {
+		b.WriteString("(пусто)\n")
+	} else {
+		b.WriteString(coreTail)
+	}
+	return b.String(), nil
 }

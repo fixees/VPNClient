@@ -110,7 +110,7 @@ func joinArgs(args []string) string {
 
 func needsQuote(s string) bool {
 	for _, r := range s {
-		if r == ' ' || r == '\t' {
+		if r == ' ' || r == '\t' || r == '&' || r == '%' || r == '"' {
 			return true
 		}
 	}

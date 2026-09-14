@@ -114,6 +114,7 @@ func (d *DNSLeakGuard) Disable() error {
 
 func runNetsh(args ...string) error {
 	cmd := exec.Command("netsh", args...)
+	HideConsole(cmd)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("netsh %s: %v (%s)", strings.Join(args, " "), err, strings.TrimSpace(string(out)))

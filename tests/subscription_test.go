@@ -3,6 +3,7 @@ package tests
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -24,6 +25,25 @@ func TestParseUserInfoHeader(t *testing.T) {
 	past := profiles.Quota{ExpireUnix: 1}
 	if !past.Expired() {
 		t.Fatal("expected expired")
+	}
+}
+
+func TestNormalizeExpireUnix(t *testing.T) {
+	sec := int64(2_000_000_000)
+	if got := subscription.NormalizeExpireUnix(sec); got != sec {
+		t.Fatalf("seconds: got %d", got)
+	}
+	ms := sec * 1000
+	if got := subscription.NormalizeExpireUnix(ms); got != sec {
+		t.Fatalf("ms: got %d want %d", got, sec)
+	}
+	us := sec * 1_000_000
+	if got := subscription.NormalizeExpireUnix(us); got != sec {
+		t.Fatalf("us: got %d want %d", got, sec)
+	}
+	q, _ := subscription.ParseUserInfoHeader(fmt.Sprintf("expire=%d", ms))
+	if q.ExpireUnix != sec {
+		t.Fatalf("header ms normalize: %d", q.ExpireUnix)
 	}
 }
 

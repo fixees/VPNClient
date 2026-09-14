@@ -9,51 +9,43 @@ import (
 	"strings"
 
 	"myinternetvpn/client/internal/profiles"
-
-	"gopkg.in/yaml.v3"
 )
 
-// ParseShareLink converts vless:// vmess:// ss:// into a Clash proxy map.
+// ParseShareLink converts share URIs into a Clash Meta / mihomo proxy map.
+// Supported: ss, vmess, vless (+Reality), trojan, tuic, hysteria/hy2, wireguard, ssh, socks5, http.
 func ParseShareLink(raw string) (profiles.ProxyNode, error) {
 	raw = strings.TrimSpace(raw)
+	lower := strings.ToLower(raw)
 	switch {
-	case strings.HasPrefix(raw, "ss://"):
+	case strings.HasPrefix(lower, "ss://"):
 		return parseShadowsocks(raw)
-	case strings.HasPrefix(raw, "vmess://"):
+	case strings.HasPrefix(lower, "vmess://"):
 		return parseVMess(raw)
-	case strings.HasPrefix(raw, "vless://"):
+	case strings.HasPrefix(lower, "vless://"):
 		return parseVLESS(raw)
+	case strings.HasPrefix(lower, "trojan://"):
+		return parseTrojan(raw)
+	case strings.HasPrefix(lower, "tuic://"):
+		return parseTUIC(raw)
+	case strings.HasPrefix(lower, "hysteria2://"), strings.HasPrefix(lower, "hy2://"):
+		return parseHysteria2(raw)
+	case strings.HasPrefix(lower, "hysteria://"), strings.HasPrefix(lower, "hy://"):
+		return parseHysteria(raw)
+	case strings.HasPrefix(lower, "wireguard://"), strings.HasPrefix(lower, "wg://"):
+		return parseWireGuard(raw)
+	case strings.HasPrefix(lower, "ssh://"):
+		return parseSSH(raw)
+	case strings.HasPrefix(lower, "socks5://"), strings.HasPrefix(lower, "socks://"):
+		return parseSocks5(raw)
+	case strings.HasPrefix(lower, "http://"), strings.HasPrefix(lower, "https://"):
+		// Only treat as HTTP proxy when userinfo is present (otherwise it's a subscription URL).
+		if u, err := url.Parse(raw); err == nil && u.User != nil {
+			return parseHTTPProxy(raw)
+		}
+		return nil, fmt.Errorf("http(s) without credentials is a subscription URL, not a node")
 	default:
 		return nil, fmt.Errorf("unsupported share link scheme")
 	}
-}
-
-// ParseClashYAML extracts proxies from a Clash/Clash Meta document.
-func ParseClashYAML(raw []byte) ([]profiles.ProxyNode, error) {
-	var doc map[string]any
-	if err := yaml.Unmarshal(raw, &doc); err != nil {
-		return nil, err
-	}
-	list, ok := doc["proxies"].([]any)
-	if !ok || len(list) == 0 {
-		return nil, fmt.Errorf("no proxies found in clash yaml")
-	}
-	out := make([]profiles.ProxyNode, 0, len(list))
-	for i, item := range list {
-		m, ok := item.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("proxy #%d is not a map", i)
-		}
-		node := profiles.ProxyNode(m)
-		if name, _ := node["name"].(string); name == "" {
-			return nil, fmt.Errorf("proxy #%d missing name", i)
-		}
-		if typ, _ := node["type"].(string); typ == "" {
-			return nil, fmt.Errorf("proxy %q missing type", node["name"])
-		}
-		out = append(out, node)
-	}
-	return out, nil
 }
 
 // ParseInput auto-detects JSON proxy, share link, or Clash YAML.
@@ -96,15 +88,26 @@ func ParseInput(raw string) ([]profiles.ProxyNode, error) {
 
 // ParseSubscriptionBody accepts Clash YAML, base64 link lists, or plain share links.
 func ParseSubscriptionBody(raw []byte) ([]profiles.ProxyNode, error) {
-	text := strings.TrimSpace(string(raw))
+	return ParseSubscriptionBodyWithFetch(raw, nil)
+}
+
+// ParseSubscriptionBodyWithFetch resolves http proxy-providers when fetch is provided.
+func ParseSubscriptionBodyWithFetch(raw []byte, fetch FetchURLFunc) ([]profiles.ProxyNode, error) {
+	text := strings.TrimSpace(string(stripBOM(raw)))
 	if text == "" {
 		return nil, fmt.Errorf("empty subscription body")
 	}
 
-	// Clash / Meta YAML
+	// Clash / Meta YAML (inline proxies and/or proxy-providers)
 	if looksLikeClashYAML(text) {
-		if nodes, err := ParseClashYAML([]byte(text)); err == nil {
+		nodes, err := ParseClashYAMLWithFetch([]byte(text), fetch)
+		if err == nil {
 			return nodes, nil
+		}
+		// Prefer the Clash error over falling through to share-link parsers.
+		lower := strings.ToLower(text)
+		if strings.Contains(lower, "proxies:") || strings.Contains(lower, "proxy-providers:") {
+			return nil, err
 		}
 	}
 
@@ -112,7 +115,7 @@ func ParseSubscriptionBody(raw []byte) ([]profiles.ProxyNode, error) {
 	if decoded, err := decodeBase64(text); err == nil {
 		decoded = strings.TrimSpace(decoded)
 		if looksLikeClashYAML(decoded) {
-			if nodes, err := ParseClashYAML([]byte(decoded)); err == nil {
+			if nodes, err := ParseClashYAMLWithFetch([]byte(decoded), fetch); err == nil {
 				return nodes, nil
 			}
 		}
@@ -158,9 +161,25 @@ func ParseShareLinkList(raw string) ([]profiles.ProxyNode, error) {
 func looksLikeClashYAML(text string) bool {
 	lower := strings.ToLower(text)
 	return strings.Contains(lower, "proxies:") ||
+		strings.Contains(lower, "proxy-providers:") ||
 		strings.HasPrefix(lower, "mixed-port:") ||
 		strings.HasPrefix(lower, "port:") ||
 		strings.Contains(lower, "proxy-groups:")
+}
+
+
+func decodeProxyName(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	if u, err := url.PathUnescape(raw); err == nil && u != "" {
+		raw = u
+	}
+	if u, err := url.QueryUnescape(raw); err == nil && u != "" {
+		return u
+	}
+	return raw
 }
 
 func parseShadowsocks(raw string) (profiles.ProxyNode, error) {
@@ -168,7 +187,7 @@ func parseShadowsocks(raw string) (profiles.ProxyNode, error) {
 	if err != nil {
 		return nil, err
 	}
-	name := u.Fragment
+	name := decodeProxyName(u.Fragment)
 	if name == "" {
 		name = "ss-node"
 	}
@@ -236,8 +255,8 @@ func parseVMess(raw string) (profiles.ProxyNode, error) {
 	if err := json.Unmarshal([]byte(decoded), &m); err != nil {
 		return nil, err
 	}
-	name, _ := m["ps"].(string)
-	if name == "" {
+	name := decodeProxyName(fmt.Sprint(m["ps"]))
+	if name == "" || name == "<nil>" {
 		name = "vmess-node"
 	}
 	port := toInt(m["port"])
@@ -267,7 +286,7 @@ func parseVLESS(raw string) (profiles.ProxyNode, error) {
 	if err != nil {
 		return nil, err
 	}
-	name := u.Fragment
+	name := decodeProxyName(u.Fragment)
 	if name == "" {
 		name = "vless-node"
 	}
@@ -311,7 +330,34 @@ func parseVLESS(raw string) (profiles.ProxyNode, error) {
 			},
 		}
 	}
+	applyECHOpts(node, q)
 	return node, nil
+}
+
+// applyECHOpts maps share-link ECH query params into Clash Meta ech-opts (#2327).
+func applyECHOpts(node profiles.ProxyNode, q url.Values) {
+	cfg := firstNonEmpty(
+		q.Get("ech-config"),
+		q.Get("ech_config"),
+		q.Get("echConfig"),
+		q.Get("pqv"),
+	)
+	enabled := false
+	switch strings.ToLower(strings.TrimSpace(q.Get("ech"))) {
+	case "1", "true", "yes", "on":
+		enabled = true
+	}
+	if cfg != "" {
+		enabled = true
+	}
+	if !enabled {
+		return
+	}
+	opts := map[string]any{"enable": true}
+	if cfg != "" {
+		opts["config"] = cfg
+	}
+	node["ech-opts"] = opts
 }
 
 func decodeBase64(s string) (string, error) {

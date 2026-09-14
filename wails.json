@@ -7,13 +7,13 @@
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
   "author": {
-    "name": "MyInternetVPN"
+    "name": "Мой VPN"
   },
   "info": {
-    "companyName": "MyInternetVPN",
-    "productName": "MyInternetVPN",
+    "companyName": "Мой VPN",
+    "productName": "Мой VPN",
     "productVersion": "2.0.0",
-    "copyright": "Copyright MyInternetVPN",
-    "comments": "Windows VPN client"
+    "copyright": "Copyright Мой VPN",
+    "comments": "Мой VPN Client"
   }
 }

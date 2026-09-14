@@ -21,6 +21,7 @@ type BuildInput struct {
 	Mode             string
 	TUN              bool
 	TUNStack         string
+	VPNInterface     string // TUN device-name + kill-switch interface
 	AllowLAN         bool
 	IPv6             bool
 	LogLevel         string
@@ -29,6 +30,12 @@ type BuildInput struct {
 	URLTestSec       int
 	BypassLAN        bool
 	BypassGEOIP      string
+	RouteDirect      string // multiline: domains / IPs / regexp → DIRECT
+	RouteBlock       string // multiline → REJECT
+	RouteProxy       string // multiline → PROXY group
+	RouteWhitelist   bool   // MATCH → REJECT; only listed DIRECT/PROXY allowed
+	AppRouteMode     string // off | whitelist | blacklist
+	AppRouteList     string // multiline PROCESS-NAME / paths
 	DNSEnhancedMode  string
 	DNSNameservers   []string
 	DNSFallbacks     []string
@@ -37,10 +44,17 @@ type BuildInput struct {
 	TCPConcurrent    bool
 	UnifiedDelay     bool
 	WARPEnabled      bool
+	WARPMode         string // via-proxy | proxy-via-warp
 	WARPPrivateKey   string
 	WARPLocalAddress string
 	WARPEndpoint     string
 	WARPPublicKey    string
+	WARPCleanIP      string
+	WARPPort         int
+	WARPNoiseCount   string
+	WARPNoiseMode    string
+	WARPNoiseSize    string
+	WARPNoiseDelay   string
 }
 
 // Build produces a Clash Meta / mihomo YAML document.
@@ -95,8 +109,16 @@ func Build(in BuildInput) ([]byte, error) {
 		if name == "" {
 			return nil, fmt.Errorf("proxy at index %d missing name", i)
 		}
+		if name == defaults.WARPProxyName {
+			continue // reserved for protection layer
+		}
+		node := map[string]any(p)
+		if in.WARPEnabled && warpMode(in) == defaults.WARPModeProxyViaWARP {
+			node = cloneProxyMap(p)
+			node["dialer-proxy"] = defaults.WARPProxyName
+		}
 		proxyNames = append(proxyNames, name)
-		proxies = append(proxies, map[string]any(p))
+		proxies = append(proxies, node)
 	}
 
 	if in.WARPEnabled {
@@ -105,7 +127,6 @@ func Build(in BuildInput) ([]byte, error) {
 			return nil, err
 		}
 		proxies = append(proxies, warp)
-		proxyNames = append(proxyNames, defaults.WARPProxyName)
 	}
 
 	selectProxies := append([]string{defaults.AutoGroup}, proxyNames...)
@@ -142,14 +163,26 @@ func Build(in BuildInput) ([]byte, error) {
 				"proxies":  proxyNames,
 				"url":      in.URLTestURL,
 				"interval": in.URLTestSec,
+				"lazy":     false,
+				"tolerance": 50,
 			},
 		},
 		"rules": rules,
 	}
 
+	if AppRoutingEnabled(in) {
+		// Needed so PROCESS-NAME / PROCESS-PATH rules resolve under TUN.
+		doc["find-process-mode"] = "always"
+	}
+
 	if in.TUN {
+		device := strings.TrimSpace(in.VPNInterface)
+		if device == "" {
+			device = defaults.DefaultVPNIface
+		}
 		doc["tun"] = map[string]any{
 			"enable":                true,
+			"device-name":           device,
 			"stack":                 in.TUNStack,
 			"auto-route":            true,
 			"auto-detect-interface": true,
@@ -198,17 +231,56 @@ func buildRules(in BuildInput) []string {
 			}
 		}
 	}
-	if geo := strings.ToUpper(strings.TrimSpace(in.BypassGEOIP)); geo != "" && geo != "OFF" && geo != "NONE" {
-		rules = append(rules, "GEOIP,"+geo+",DIRECT")
+	// Custom lists: block → direct → force-proxy, then per-app process rules,
+	// then GEOIP (unless domain whitelist), then MATCH.
+	rules = AppendCustomRules(rules, in)
+	rules = AppendAppProcessRules(rules, in)
+	appMode := NormalizeAppRouteMode(in.AppRouteMode)
+	if !in.RouteWhitelist && appMode != AppRouteWhitelist {
+		if geo := strings.ToUpper(strings.TrimSpace(in.BypassGEOIP)); geo != "" && geo != "OFF" && geo != "NONE" {
+			rules = append(rules, "GEOIP,"+geo+",DIRECT")
+		}
 	}
-	rules = append(rules, "MATCH,"+in.ProxyGroup)
+	// App whitelist: only listed apps use VPN; everything else goes DIRECT.
+	if appMode == AppRouteWhitelist && len(ParseAppList(in.AppRouteList)) > 0 {
+		rules = append(rules, "MATCH,DIRECT")
+		return rules
+	}
+	// Domain whitelist: everything not explicitly allowed is blocked.
+	if in.RouteWhitelist {
+		rules = append(rules, "MATCH,REJECT")
+		return rules
+	}
+	// WARP as exit layer (via-proxy): MATCH → WARP, WireGuard dials through PROXY.
+	// proxy-via-warp: MATCH → PROXY (nodes dial through WARP).
+	if in.WARPEnabled && warpMode(in) == defaults.WARPModeViaProxy {
+		rules = append(rules, "MATCH,"+defaults.WARPProxyName)
+	} else {
+		rules = append(rules, "MATCH,"+in.ProxyGroup)
+	}
 	return rules
+}
+
+func warpMode(in BuildInput) string {
+	m := strings.ToLower(strings.TrimSpace(in.WARPMode))
+	if m == defaults.WARPModeProxyViaWARP {
+		return defaults.WARPModeProxyViaWARP
+	}
+	return defaults.WARPModeViaProxy
+}
+
+func cloneProxyMap(p profiles.ProxyNode) map[string]any {
+	out := make(map[string]any, len(p)+1)
+	for k, v := range p {
+		out[k] = v
+	}
+	return out
 }
 
 func buildWARPProxy(in BuildInput) (map[string]any, error) {
 	key := strings.TrimSpace(in.WARPPrivateKey)
 	if key == "" {
-		return nil, fmt.Errorf("WARP включён, но не задан private key")
+		return nil, fmt.Errorf("WARP включён, но не задан private key — сгенерируйте конфиг в настройках")
 	}
 	endpoint := strings.TrimSpace(in.WARPEndpoint)
 	if endpoint == "" {
@@ -216,13 +288,18 @@ func buildWARPProxy(in BuildInput) (map[string]any, error) {
 	}
 	host, portStr, err := net.SplitHostPort(endpoint)
 	if err != nil {
-		// allow host without port
 		host = endpoint
 		portStr = "2408"
 	}
+	if clean := strings.TrimSpace(in.WARPCleanIP); clean != "" && !strings.EqualFold(clean, "auto") {
+		host = clean
+	}
 	port, err := strconv.Atoi(portStr)
 	if err != nil || port <= 0 {
-		return nil, fmt.Errorf("invalid WARP endpoint port")
+		port = 2408
+	}
+	if in.WARPPort > 0 {
+		port = in.WARPPort
 	}
 	pub := strings.TrimSpace(in.WARPPublicKey)
 	if pub == "" {
@@ -232,17 +309,92 @@ func buildWARPProxy(in BuildInput) (map[string]any, error) {
 	if local == "" {
 		local = defaults.WARPLocalAddress
 	}
-	return map[string]any{
+	ip := strings.TrimSuffix(local, "/32")
+	ip = strings.TrimSuffix(ip, "/128")
+
+	doc := map[string]any{
 		"name":        defaults.WARPProxyName,
 		"type":        "wireguard",
 		"server":      host,
 		"port":        port,
-		"ip":          strings.TrimSuffix(local, "/32"),
+		"ip":          ip,
 		"private-key": key,
 		"public-key":  pub,
 		"udp":         true,
 		"mtu":         1280,
-	}, nil
+	}
+	// Hiddify default: establish WARP tunnel through the selected VPN node.
+	if warpMode(in) == defaults.WARPModeViaProxy {
+		doc["dialer-proxy"] = in.ProxyGroup
+	}
+	if opt := amneziaOption(in); opt != nil {
+		doc["amnezia-wg-option"] = opt
+	}
+	return doc, nil
+}
+
+func amneziaOption(in BuildInput) map[string]any {
+	// Optional DPI noise (AmneziaWG). Applied when count/size look configured.
+	jc := parseRangeMid(in.WARPNoiseCount, 0)
+	jmin, jmax := parseRangePair(in.WARPNoiseSize, 0, 0)
+	if jc <= 0 && jmin <= 0 && jmax <= 0 {
+		return nil
+	}
+	if jc <= 0 {
+		jc = 3
+	}
+	if jmin <= 0 {
+		jmin = 10
+	}
+	if jmax < jmin {
+		jmax = jmin + 20
+	}
+	return map[string]any{
+		"jc":   jc,
+		"jmin": jmin,
+		"jmax": jmax,
+		"s1":   0,
+		"s2":   0,
+		"h1":   1,
+		"h2":   2,
+		"h3":   3,
+		"h4":   4,
+	}
+}
+
+func parseRangeMid(s string, fallback int) int {
+	a, b := parseRangePair(s, fallback, fallback)
+	if a <= 0 && b <= 0 {
+		return fallback
+	}
+	if b < a {
+		b = a
+	}
+	return (a + b) / 2
+}
+
+func parseRangePair(s string, defA, defB int) (int, int) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return defA, defB
+	}
+	if strings.Contains(s, "-") {
+		parts := strings.SplitN(s, "-", 2)
+		a, _ := strconv.Atoi(strings.TrimSpace(parts[0]))
+		b, _ := strconv.Atoi(strings.TrimSpace(parts[1]))
+		if a <= 0 {
+			a = defA
+		}
+		if b <= 0 {
+			b = defB
+		}
+		return a, b
+	}
+	n, _ := strconv.Atoi(s)
+	if n <= 0 {
+		return defA, defB
+	}
+	return n, n
 }
 
 // FromSettings maps persisted settings into BuildInput (profile filled by caller).
@@ -257,12 +409,19 @@ func FromSettings(s *profiles.Settings) BuildInput {
 		Mode:             s.Mode,
 		TUN:              s.TUN,
 		TUNStack:         s.TUNStack,
+		VPNInterface:     s.VPNInterface,
 		AllowLAN:         s.AllowLAN,
 		IPv6:             s.IPv6,
 		LogLevel:         s.LogLevel,
 		ProxyGroup:       s.ProxyGroup,
 		BypassLAN:        s.BypassLAN,
 		BypassGEOIP:      s.BypassGEOIP,
+		RouteDirect:      s.RouteDirect,
+		RouteBlock:       s.RouteBlock,
+		RouteProxy:       s.RouteProxy,
+		RouteWhitelist:   s.RouteWhitelist,
+		AppRouteMode:     s.AppRouteMode,
+		AppRouteList:     s.AppRouteList,
 		DNSEnhancedMode:  s.DNSEnhancedMode,
 		DNSNameservers:   profiles.SplitList(s.DNSNameservers),
 		DNSFallbacks:     profiles.SplitList(s.DNSFallbacks),
@@ -271,9 +430,18 @@ func FromSettings(s *profiles.Settings) BuildInput {
 		TCPConcurrent:    s.TCPConcurrent,
 		UnifiedDelay:     s.UnifiedDelay,
 		WARPEnabled:      s.WARPEnabled,
+		WARPMode:         s.WARPMode,
 		WARPPrivateKey:   s.WARPPrivateKey,
 		WARPLocalAddress: s.WARPLocalAddress,
 		WARPEndpoint:     s.WARPEndpoint,
 		WARPPublicKey:    s.WARPPublicKey,
+		WARPCleanIP:      s.WARPCleanIP,
+		WARPPort:         s.WARPPort,
+		WARPNoiseCount:   s.WARPNoiseCount,
+		WARPNoiseMode:    s.WARPNoiseMode,
+		WARPNoiseSize:    s.WARPNoiseSize,
+		WARPNoiseDelay:   s.WARPNoiseDelay,
+		URLTestURL:       defaults.ResolveURLTestURL(s.URLTestPreset, s.URLTestURL),
+		URLTestSec:       s.URLTestIntervalSec,
 	}
 }

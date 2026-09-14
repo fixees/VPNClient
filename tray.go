@@ -2,6 +2,7 @@ package main
 
 import (
 	_ "embed"
+	"fmt"
 
 	"myinternetvpn/client/internal/defaults"
 
@@ -23,12 +24,18 @@ func (a *App) startTray() {
 func (a *App) onTrayReady() {
 	systray.SetIcon(trayIcon)
 	systray.SetTitle(defaults.ProductName)
-	systray.SetTooltip(defaults.ProductName)
+	a.setTrayDisconnected()
 
-	mShow := systray.AddMenuItem("Show", "Show main window")
-	mToggle := systray.AddMenuItem("Connect / Disconnect", "Toggle VPN connection")
+	mShow := systray.AddMenuItem("Показать", "Открыть окно")
+	mToggle := systray.AddMenuItem("Подключить", "Подключить / отключить VPN")
 	systray.AddSeparator()
-	mQuit := systray.AddMenuItem("Quit", "Exit "+defaults.ProductName)
+	mQuit := systray.AddMenuItem("Выйти", "Закрыть "+defaults.ProductName)
+
+	a.trayMu.Lock()
+	a.trayToggle = mToggle
+	a.trayReady = true
+	a.trayMu.Unlock()
+	a.refreshTrayStatus()
 
 	go func() {
 		for {
@@ -39,6 +46,7 @@ func (a *App) onTrayReady() {
 				if err := a.ToggleConnect(); err != nil && a.log != nil {
 					a.log.Warn("tray toggle: %v", err)
 				}
+				a.refreshTrayStatus()
 			case <-mQuit.ClickedCh:
 				systray.Quit()
 				a.QuitApp()
@@ -49,4 +57,55 @@ func (a *App) onTrayReady() {
 			}
 		}
 	}()
+}
+
+func (a *App) setTrayDisconnected() {
+	systray.SetTooltip(defaults.ProductName + " — Отключено")
+}
+
+func (a *App) refreshTrayStatus() {
+	a.trayMu.Lock()
+	ready := a.trayReady
+	toggle := a.trayToggle
+	a.trayMu.Unlock()
+	if !ready {
+		return
+	}
+
+	connected := a.manager != nil && a.manager.Running()
+	profile := ""
+	node := ""
+	if a.settings != nil {
+		profile = a.settings.ActiveProfile
+		node = a.settings.SelectedNode
+	}
+
+	if connected {
+		tip := defaults.ProductName + " — Подключено"
+		if profile != "" {
+			tip += " · " + profile
+		}
+		if node != "" {
+			tip += " · " + node
+		}
+		systray.SetTooltip(tip)
+		if toggle != nil {
+			toggle.SetTitle("Отключить")
+			toggle.SetTooltip(fmt.Sprintf("Отключить VPN (%s)", profileOrDash(profile)))
+		}
+		return
+	}
+
+	systray.SetTooltip(defaults.ProductName + " — Отключено")
+	if toggle != nil {
+		toggle.SetTitle("Подключить")
+		toggle.SetTooltip("Подключить VPN")
+	}
+}
+
+func profileOrDash(s string) string {
+	if s == "" {
+		return "—"
+	}
+	return s
 }

@@ -2,10 +2,12 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
+	"strings"
+	"time"
 
 	"myinternetvpn/client/internal/defaults"
 )
@@ -25,13 +27,14 @@ type DelaySample struct {
 	Delay int    `json:"delay"`
 }
 
-// ProxyNodeRuntime is a leaf proxy entry.
+// ProxyNodeRuntime is a leaf proxy entry (or selectable nested group like AUTO).
 type ProxyNodeRuntime struct {
 	Name    string        `json:"name"`
 	Type    string        `json:"type"`
 	UDP     bool          `json:"udp"`
 	History []DelaySample `json:"history,omitempty"`
 	Delay   int           `json:"delay"`
+	Now     string        `json:"now,omitempty"` // for AUTO: currently chosen leaf
 }
 
 type proxiesResponse struct {
@@ -71,22 +74,68 @@ func (c *Client) CloseConnections() error {
 }
 
 // TestDelay triggers URL-test delay for a proxy name.
+// timeoutMs is clamped to DelayAPITimeoutMaxMS — mihomo parses ?timeout= as int16
+// and returns HTTP 400 {"message":"Body invalid"} when the value overflows.
 func (c *Client) TestDelay(name, testURL string, timeoutMs int) (int, error) {
 	if testURL == "" {
 		testURL = defaults.URLTestURL
 	}
-	if timeoutMs <= 0 {
-		timeoutMs = defaults.URLTestTimeoutMS
+	timeoutMs = clampDelayTimeout(timeoutMs)
+	q := url.Values{}
+	q.Set("url", testURL)
+	q.Set("timeout", strconv.Itoa(timeoutMs))
+	if expected := delayExpectedStatus(testURL); expected != "" {
+		q.Set("expected", expected)
 	}
-	path := fmt.Sprintf("/proxies/%s/delay?url=%s&timeout=%d",
-		url.PathEscape(name), url.QueryEscape(testURL), timeoutMs)
+	path := "/proxies/" + url.PathEscape(name) + "/delay?" + q.Encode()
 	var out struct {
 		Delay int `json:"delay"`
 	}
-	if err := c.getJSON(path, &out); err != nil {
+	if err := c.getJSONWithTimeout(path, time.Duration(timeoutMs)*time.Millisecond+3*time.Second, &out); err != nil {
 		return 0, err
 	}
 	return out.Delay, nil
+}
+
+// TestGroupDelay runs delay tests for every member of a strategy group (AUTO/url-test).
+func (c *Client) TestGroupDelay(name, testURL string, timeoutMs int) (map[string]int, error) {
+	if testURL == "" {
+		testURL = defaults.URLTestURL
+	}
+	timeoutMs = clampDelayTimeout(timeoutMs)
+	q := url.Values{}
+	q.Set("url", testURL)
+	q.Set("timeout", strconv.Itoa(timeoutMs))
+	if expected := delayExpectedStatus(testURL); expected != "" {
+		q.Set("expected", expected)
+	}
+	path := "/group/" + url.PathEscape(name) + "/delay?" + q.Encode()
+	var out map[string]int
+	if err := c.getJSONWithTimeout(path, time.Duration(timeoutMs)*time.Millisecond+5*time.Second, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func clampDelayTimeout(timeoutMs int) int {
+	if timeoutMs <= 0 {
+		timeoutMs = defaults.URLTestTimeoutMS
+	}
+	if timeoutMs > defaults.DelayAPITimeoutMaxMS {
+		timeoutMs = defaults.DelayAPITimeoutMaxMS
+	}
+	return timeoutMs
+}
+
+func delayExpectedStatus(testURL string) string {
+	u := strings.ToLower(testURL)
+	if strings.Contains(u, "generate_204") || strings.Contains(u, "hotspot-detect") {
+		return "204"
+	}
+	if strings.Contains(u, "cdn-cgi/trace") {
+		return "200"
+	}
+	return ""
 }
 
 // ListSelectableNodes returns PROXY group members with best-known delay.
@@ -104,7 +153,7 @@ func (c *Client) ListSelectableNodes(group string) (ProxyGroup, []ProxyNodeRunti
 	}
 	out := make([]ProxyNodeRuntime, 0, len(g.All))
 	for _, name := range g.All {
-		if name == "DIRECT" || name == "REJECT" {
+		if name == "DIRECT" || name == "REJECT" || name == defaults.WARPProxyName {
 			continue
 		}
 		node := ProxyNodeRuntime{Name: name}
@@ -112,11 +161,13 @@ func (c *Client) ListSelectableNodes(group string) (ProxyGroup, []ProxyNodeRunti
 			var meta struct {
 				Type    string        `json:"type"`
 				UDP     bool          `json:"udp"`
+				Now     string        `json:"now"`
 				History []DelaySample `json:"history"`
 			}
 			_ = json.Unmarshal(rawNode, &meta)
 			node.Type = meta.Type
 			node.UDP = meta.UDP
+			node.Now = meta.Now
 			node.History = meta.History
 			if len(meta.History) > 0 {
 				node.Delay = meta.History[len(meta.History)-1].Delay
@@ -131,6 +182,12 @@ func (c *Client) ListSelectableNodes(group string) (ProxyGroup, []ProxyNodeRunti
 		out = append(out, node)
 	}
 	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Name == defaults.AutoGroup {
+			return true
+		}
+		if out[j].Name == defaults.AutoGroup {
+			return false
+		}
 		return out[i].Name < out[j].Name
 	})
 	return g, out, nil

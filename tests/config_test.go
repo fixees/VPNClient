@@ -65,6 +65,9 @@ func TestConfigBuildProducesValidYAML(t *testing.T) {
 	if !ok || tun["enable"] != true || tun["stack"] != "gvisor" {
 		t.Fatalf("expected tun enabled/gvisor, got %#v", doc["tun"])
 	}
+	if tun["device-name"] != "Meta" {
+		t.Fatalf("expected device-name Meta, got %#v", tun["device-name"])
+	}
 	dns, ok := doc["dns"].(map[string]any)
 	if !ok || dns["enhanced-mode"] != "fake-ip" {
 		t.Fatalf("dns = %#v", doc["dns"])
@@ -110,18 +113,60 @@ func TestConfigBuildUsesAllProxyNamesInGroups(t *testing.T) {
 		},
 		TUN:         false,
 		BypassGEOIP: "CN",
+		RouteBlock:  "ads.bad\nregexp:^tracker\\.",
+		RouteDirect: "intranet.corp\n10.20.0.0/16",
+		RouteProxy:  "need-vpn.example",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	text := string(raw)
-	for _, needle := range []string{"de-1", "nl-1", "type: select", "type: url-test", "MATCH,PROXY", "GEOIP,CN,DIRECT"} {
+	for _, needle := range []string{
+		"de-1", "nl-1", "type: select", "type: url-test", "MATCH,PROXY", "GEOIP,CN,DIRECT",
+		"DOMAIN-SUFFIX,ads.bad,REJECT",
+		"DOMAIN-REGEX,^tracker\\.,REJECT",
+		"DOMAIN-SUFFIX,intranet.corp,DIRECT",
+		"IP-CIDR,10.20.0.0/16,DIRECT,no-resolve",
+		"DOMAIN-SUFFIX,need-vpn.example,PROXY",
+	} {
 		if !strings.Contains(text, needle) {
 			t.Fatalf("missing %q in:\n%s", needle, text)
 		}
 	}
 	if strings.Contains(text, "tun:") {
 		t.Fatal("tun should be omitted when disabled")
+	}
+}
+
+func TestConfigBuildWhitelistMode(t *testing.T) {
+	raw, err := config.Build(config.BuildInput{
+		Profile: profiles.Profile{
+			Name: "WL",
+			Proxies: []profiles.ProxyNode{
+				{"name": "n1", "type": "ss", "server": "a.example", "port": 443, "cipher": "aes-128-gcm", "password": "p"},
+			},
+		},
+		BypassGEOIP:    "CN",
+		BypassLAN:      true,
+		RouteDirect:    "ok.direct",
+		RouteProxy:     "ok.vpn",
+		RouteWhitelist: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(raw)
+	if !strings.Contains(text, "MATCH,REJECT") {
+		t.Fatalf("expected MATCH,REJECT:\n%s", text)
+	}
+	if strings.Contains(text, "GEOIP,CN,DIRECT") {
+		t.Fatal("GEOIP bypass must be off in whitelist mode")
+	}
+	if !strings.Contains(text, "DOMAIN-SUFFIX,ok.direct,DIRECT") || !strings.Contains(text, "DOMAIN-SUFFIX,ok.vpn,PROXY") {
+		t.Fatalf("allow rules missing:\n%s", text)
+	}
+	if !strings.Contains(text, "IP-CIDR,192.168.0.0/16,DIRECT") {
+		t.Fatal("LAN bypass should remain")
 	}
 }
 
@@ -152,6 +197,26 @@ func TestConfigBuildWARP(t *testing.T) {
 	text := string(raw)
 	if !strings.Contains(text, "type: wireguard") || !strings.Contains(text, "name: WARP") {
 		t.Fatalf("WARP proxy missing:\n%s", text)
+	}
+	if !strings.Contains(text, "dialer-proxy: PROXY") {
+		t.Fatalf("expected WARP dialer-proxy through PROXY:\n%s", text)
+	}
+	if !strings.Contains(text, "MATCH,WARP") {
+		t.Fatalf("expected MATCH,WARP exit:\n%s", text)
+	}
+	if strings.Contains(text, "proxies:\n    - AUTO\n    - n1\n    - WARP") || strings.Count(text, "- WARP") > 1 && strings.Contains(text, "type: select") {
+		// WARP must not be a selectable leaf in PROXY group list of names after AUTO
+	}
+	// PROXY select group should list AUTO + n1 only (not WARP as choice).
+	if strings.Contains(text, "type: select") {
+		idx := strings.Index(text, "type: select")
+		chunk := text[idx:]
+		if end := strings.Index(chunk, "type: url-test"); end > 0 {
+			chunk = chunk[:end]
+		}
+		if strings.Contains(chunk, "- WARP") {
+			t.Fatalf("WARP must not appear in select group:\n%s", chunk)
+		}
 	}
 }
 

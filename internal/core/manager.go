@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"sync"
 	"time"
 
 	"myinternetvpn/client/internal/api"
 	"myinternetvpn/client/internal/defaults"
+	"myinternetvpn/client/internal/winutil"
 )
 
 // API is the subset of mihomo controller used by Manager.
@@ -131,22 +133,39 @@ func (m *Manager) Stop() error {
 }
 
 type execRunner struct {
-	cmd  *exec.Cmd
-	done chan error
+	cmd     *exec.Cmd
+	logFile *os.File
+	done    chan error
 }
 
 func (r *execRunner) Start(bin string, args []string, workDir string) error {
 	cmd := exec.Command(bin, args...)
 	cmd.Dir = workDir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+
+	// Keep mihomo output in a file — never attach to a visible console.
+	logPath := filepath.Join(workDir, "mihomo.log")
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	cmd.Stdout = logFile
+	cmd.Stderr = logFile
+	winutil.HideConsole(cmd)
+
 	if err := cmd.Start(); err != nil {
+		_ = logFile.Close()
 		return err
 	}
 	r.cmd = cmd
+	r.logFile = logFile
 	r.done = make(chan error, 1)
 	go func() {
-		r.done <- cmd.Wait()
+		waitErr := cmd.Wait()
+		if r.logFile != nil {
+			_ = r.logFile.Close()
+			r.logFile = nil
+		}
+		r.done <- waitErr
 	}()
 	return nil
 }
