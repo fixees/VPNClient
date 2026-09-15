@@ -102,6 +102,14 @@ func Build(in BuildInput) ([]byte, error) {
 		in.DNSFakeIPRange = defaults.DNSFakeIPRange
 	}
 
+	appRouting := AppRoutingEnabled(in)
+	// fake-ip breaks DIRECT apps that still traverse TUN (Discord RTC/QUIC, etc.).
+	// App split-tunnel always has some PROCESS → DIRECT path, so prefer redir-host.
+	dnsMode := in.DNSEnhancedMode
+	if appRouting {
+		dnsMode = "redir-host"
+	}
+
 	proxyNames := make([]string, 0, len(in.Profile.Proxies)+1)
 	proxies := make([]map[string]any, 0, len(in.Profile.Proxies)+1)
 	for i, p := range in.Profile.Proxies {
@@ -132,6 +140,19 @@ func Build(in BuildInput) ([]byte, error) {
 	selectProxies := append([]string{defaults.AutoGroup}, proxyNames...)
 	rules := buildRules(in)
 
+	dns := map[string]any{
+		"enable":        true,
+		"enhanced-mode": dnsMode,
+		"fake-ip-range": in.DNSFakeIPRange,
+		"nameserver":    in.DNSNameservers,
+		"fallback":      in.DNSFallbacks,
+		"ipv6":          in.IPv6,
+	}
+	if appRouting {
+		// Resolve DNS using the same PROCESS/MATCH rules as traffic.
+		dns["respect-rules"] = true
+	}
+
 	doc := map[string]any{
 		"mixed-port":          in.MixedPort,
 		"allow-lan":           in.AllowLAN,
@@ -142,15 +163,8 @@ func Build(in BuildInput) ([]byte, error) {
 		"secret":              in.Secret,
 		"tcp-concurrent":      in.TCPConcurrent,
 		"unified-delay":       in.UnifiedDelay,
-		"dns": map[string]any{
-			"enable":        true,
-			"enhanced-mode": in.DNSEnhancedMode,
-			"fake-ip-range": in.DNSFakeIPRange,
-			"nameserver":    in.DNSNameservers,
-			"fallback":      in.DNSFallbacks,
-			"ipv6":          in.IPv6,
-		},
-		"proxies": proxies,
+		"dns":                 dns,
+		"proxies":             proxies,
 		"proxy-groups": []map[string]any{
 			{
 				"name":    in.ProxyGroup,
@@ -158,19 +172,19 @@ func Build(in BuildInput) ([]byte, error) {
 				"proxies": selectProxies,
 			},
 			{
-				"name":     defaults.AutoGroup,
-				"type":     "url-test",
-				"proxies":  proxyNames,
-				"url":      in.URLTestURL,
-				"interval": in.URLTestSec,
-				"lazy":     false,
+				"name":      defaults.AutoGroup,
+				"type":      "url-test",
+				"proxies":   proxyNames,
+				"url":       in.URLTestURL,
+				"interval":  in.URLTestSec,
+				"lazy":      false,
 				"tolerance": 50,
 			},
 		},
 		"rules": rules,
 	}
 
-	if AppRoutingEnabled(in) {
+	if appRouting {
 		// Needed so PROCESS-NAME / PROCESS-PATH rules resolve under TUN.
 		doc["find-process-mode"] = "always"
 	}
@@ -191,10 +205,12 @@ func Build(in BuildInput) ([]byte, error) {
 	}
 
 	if in.Sniffer {
+		// override-destination + fake-ip/sniff remaps can break DIRECT RTC apps under TUN.
+		overrideDest := !appRouting
 		doc["sniffer"] = map[string]any{
 			"enable":               true,
 			"parse-pure-ip":        true,
-			"override-destination": true,
+			"override-destination": overrideDest,
 			"sniff": map[string]any{
 				"TLS": map[string]any{
 					"ports": []any{443, "8443"},

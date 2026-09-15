@@ -820,20 +820,32 @@ func (a *App) Connect() error {
 		_ = a.saveProxySnapshot(snap, a.settings.MixedPort)
 	}
 
+	appWhitelist := config.NormalizeAppRouteMode(a.settings.AppRouteMode) == config.AppRouteWhitelist &&
+		len(config.ParseAppList(a.settings.AppRouteList)) > 0
+
 	if a.settings.KillSwitch {
-		iface := strings.TrimSpace(a.settings.VPNInterface)
-		if iface == "" {
-			iface = defaults.DefaultVPNIface
-			a.settings.VPNInterface = iface
-		}
-		if err := a.killSwitch.Enable(iface); err != nil {
-			_ = a.cleanupNetwork()
-			_ = a.manager.Stop()
-			return fmt.Errorf("kill switch: %w", err)
+		// Whitelist sends non-listed apps DIRECT via the physical NIC; a firewall
+		// kill-switch that only allows the TUN iface would block Discord etc.
+		if appWhitelist {
+			a.log.Warn("kill switch skipped: app whitelist uses DIRECT for non-listed apps")
+		} else {
+			iface := strings.TrimSpace(a.settings.VPNInterface)
+			if iface == "" {
+				iface = defaults.DefaultVPNIface
+				a.settings.VPNInterface = iface
+			}
+			if err := a.killSwitch.Enable(iface); err != nil {
+				_ = a.cleanupNetwork()
+				_ = a.manager.Stop()
+				return fmt.Errorf("kill switch: %w", err)
+			}
 		}
 	}
 	if a.settings.DNSLeakProtection {
-		if err := a.dnsGuard.Enable(); err != nil {
+		// Same conflict: DIRECT apps may need real DNS paths when hijack gaps exist.
+		if appWhitelist {
+			a.log.Warn("dns leak protection skipped: incompatible with app whitelist DIRECT path")
+		} else if err := a.dnsGuard.Enable(); err != nil {
 			_ = a.cleanupNetwork()
 			_ = a.manager.Stop()
 			return fmt.Errorf("dns leak protection: %w", err)

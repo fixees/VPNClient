@@ -3,6 +3,8 @@ package config
 import (
 	"strings"
 	"testing"
+
+	"myinternetvpn/client/internal/profiles"
 )
 
 func TestParseAppListAndRules(t *testing.T) {
@@ -44,6 +46,38 @@ func TestBuildRulesAppWhitelist(t *testing.T) {
 	}
 	if rules[len(rules)-1] != "MATCH,DIRECT" {
 		t.Fatalf("want MATCH,DIRECT got %v", rules[len(rules)-1])
+	}
+}
+
+func TestBuildAppWhitelistForcesRedirHost(t *testing.T) {
+	raw, err := Build(BuildInput{
+		Profile: profiles.Profile{
+			Name: "Work",
+			Proxies: []profiles.ProxyNode{
+				{"name": "node-a", "type": "ss", "server": "a.example", "port": 443, "cipher": "aes-128-gcm", "password": "x"},
+			},
+		},
+		TUN:             true,
+		DNSEnhancedMode: "fake-ip",
+		Sniffer:         true,
+		AppRouteMode:    AppRouteWhitelist,
+		AppRouteList:    "AyuGram.exe\nCursor.exe",
+	})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	text := string(raw)
+	if !strings.Contains(text, "enhanced-mode: redir-host") {
+		t.Fatalf("expected redir-host for app whitelist:\n%s", text)
+	}
+	if !strings.Contains(text, "respect-rules: true") {
+		t.Fatalf("expected respect-rules:\n%s", text)
+	}
+	if !strings.Contains(text, "find-process-mode: always") {
+		t.Fatalf("expected find-process-mode:\n%s", text)
+	}
+	if !strings.Contains(text, "override-destination: false") {
+		t.Fatalf("expected sniffer override-destination false:\n%s", text)
 	}
 }
 
