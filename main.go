@@ -26,6 +26,13 @@ var assets embed.FS
 func main() {
 	pendingLink := deeplink.FromArgs(os.Args[1:])
 
+	// Detect an already-running instance before UAC so a second launch never
+	// prompts for elevation — it just focuses the existing window.
+	if winutil.InstanceAlreadyRunning() {
+		winutil.HandleSecondInstance(defaults.WindowTitle, pendingLink)
+		os.Exit(0)
+	}
+
 	// Always run elevated (TUN / firewall / routes). Manifest also requests admin;
 	// this covers builds without embedded requireAdministrator.
 	okAdmin, err := winutil.EnsureAdmin()
@@ -38,9 +45,17 @@ func main() {
 		os.Exit(0)
 	}
 
+	// After elevation another copy may already own the mutex (or we raced).
+	if winutil.InstanceAlreadyRunning() {
+		winutil.HandleSecondInstance(defaults.WindowTitle, pendingLink)
+		os.Exit(0)
+	}
+
 	ok, err := winutil.AcquireSingleInstance()
 	if err != nil {
-		log.Printf("single-instance warning: %v", err)
+		log.Printf("single-instance: %v", err)
+		winutil.HandleSecondInstance(defaults.WindowTitle, pendingLink)
+		os.Exit(0)
 	}
 	if !ok {
 		winutil.HandleSecondInstance(defaults.WindowTitle, pendingLink)

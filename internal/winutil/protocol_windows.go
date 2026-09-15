@@ -100,9 +100,6 @@ func HandleSecondInstance(windowTitle, deepLink string) {
 	deepLink = strings.TrimSpace(deepLink)
 	if deepLink != "" {
 		_ = WritePendingDeepLink(deepLink)
-		_ = ActivateMainWindow(windowTitle)
-		return
 	}
-	_ = ActivateMainWindow(windowTitle)
-	MessageBox(windowTitle, "Приложение уже запущено.\nОткрыто существующее окно.", false)
+	_ = ActivateExistingClient(windowTitle)
 }

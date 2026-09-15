@@ -39,6 +39,7 @@ func ActivateMainWindow(windowTitle string) bool {
 	setForeground := user32.NewProc("SetForegroundWindow")
 	isIconic := user32.NewProc("IsIconic")
 	bringToTop := user32.NewProc("BringWindowToTop")
+	allowSetForeground := user32.NewProc("AllowSetForegroundWindow")
 
 	title, err := syscall.UTF16PtrFromString(windowTitle)
 	if err != nil {
@@ -48,6 +49,7 @@ func ActivateMainWindow(windowTitle string) bool {
 	if hwnd == 0 {
 		return false
 	}
+	_, _, _ = allowSetForeground.Call(uintptr(^uint32(0))) // ASFW_ANY
 	iconic, _, _ := isIconic.Call(hwnd)
 	if iconic != 0 {
 		_, _, _ = showWindow.Call(hwnd, swRestore)
