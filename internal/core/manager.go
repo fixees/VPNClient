@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -116,9 +117,40 @@ func (m *Manager) Start(configYAML []byte) error {
 		_ = runner.Stop(stopGrace)
 		m.running = false
 		m.mu.Unlock()
+		if detail := lastMihomoFatal(workDir); detail != "" {
+			return fmt.Errorf("mihomo API not ready: %w (%s)", err, detail)
+		}
 		return fmt.Errorf("mihomo API not ready: %w", err)
 	}
 	return nil
+}
+
+func lastMihomoFatal(workDir string) string {
+	raw, err := os.ReadFile(filepath.Join(workDir, "mihomo.log"))
+	if err != nil || len(raw) == 0 {
+		return ""
+	}
+	const maxTail = 8 << 10
+	if len(raw) > maxTail {
+		raw = raw[len(raw)-maxTail:]
+	}
+	lines := strings.Split(string(raw), "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := strings.TrimSpace(lines[i])
+		if line == "" {
+			continue
+		}
+		if strings.Contains(line, "level=fatal") || strings.Contains(line, "Parse config error") {
+			if idx := strings.Index(line, "msg="); idx >= 0 {
+				msg := strings.Trim(line[idx+4:], `"`)
+				if msg != "" {
+					return msg
+				}
+			}
+			return line
+		}
+	}
+	return ""
 }
 
 func (m *Manager) Stop() error {

@@ -150,7 +150,10 @@ func Build(in BuildInput) ([]byte, error) {
 	}
 	if appRouting {
 		// Resolve DNS using the same PROCESS/MATCH rules as traffic.
+		// mihomo requires proxy-server-nameserver when respect-rules is on
+		// (used to resolve proxy node hostnames without rule recursion).
 		dns["respect-rules"] = true
+		dns["proxy-server-nameserver"] = append([]string(nil), in.DNSNameservers...)
 	}
 
 	doc := map[string]any{

@@ -73,6 +73,9 @@ func TestBuildAppWhitelistForcesRedirHost(t *testing.T) {
 	if !strings.Contains(text, "respect-rules: true") {
 		t.Fatalf("expected respect-rules:\n%s", text)
 	}
+	if !strings.Contains(text, "proxy-server-nameserver:") {
+		t.Fatalf("expected proxy-server-nameserver with respect-rules:\n%s", text)
+	}
 	if !strings.Contains(text, "find-process-mode: always") {
 		t.Fatalf("expected find-process-mode:\n%s", text)
 	}
