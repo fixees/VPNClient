@@ -159,6 +159,13 @@ func TestAPITrafficModeConnections(t *testing.T) {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
+		if r.Method == http.MethodPut {
+			if r.URL.RawQuery != "force=true" {
+				t.Fatalf("expected force=true query, got %q", r.URL.RawQuery)
+			}
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"mode": "rule"})
 	})
 	srv := httptest.NewServer(mux)
@@ -177,6 +184,9 @@ func TestAPITrafficModeConnections(t *testing.T) {
 	}
 	if err := c.SetMode("global"); err != nil {
 		t.Fatalf("SetMode: %v", err)
+	}
+	if err := c.ReloadConfig(`C:\tmp\config.yaml`); err != nil {
+		t.Fatalf("ReloadConfig: %v", err)
 	}
 	mode, err := c.Mode()
 	if err != nil || mode != "rule" {

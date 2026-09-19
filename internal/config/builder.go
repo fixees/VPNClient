@@ -222,11 +222,13 @@ func Build(in BuildInput) ([]byte, error) {
 	}
 
 	// Sniffer on every DIRECT browser flow under TUN is expensive and often stalls CDNs.
-	// Keep it only when traffic is mostly proxied (no app split-tunnel).
-	if in.Sniffer && !appRouting {
+	// With app split-tunnel alone, keep it off. But custom site lists need SNI sniffing:
+	// Electron/Cursor use DoH, so DOMAIN rules never see a DNS mapping without the sniffer.
+	if in.Sniffer && (!appRouting || HasCustomSiteRules(in)) {
 		doc["sniffer"] = map[string]any{
 			"enable":               true,
 			"parse-pure-ip":        true,
+			"force-dns-mapping":    true,
 			"override-destination": true,
 			"sniff": map[string]any{
 				"TLS": map[string]any{
@@ -300,6 +302,13 @@ func warpMode(in BuildInput) string {
 		return defaults.WARPModeProxyViaWARP
 	}
 	return defaults.WARPModeViaProxy
+}
+
+// HasCustomSiteRules reports whether user site lists will emit DOMAIN/IP rules.
+func HasCustomSiteRules(in BuildInput) bool {
+	return strings.TrimSpace(in.RouteBlock) != "" ||
+		strings.TrimSpace(in.RouteDirect) != "" ||
+		strings.TrimSpace(in.RouteProxy) != ""
 }
 
 func cloneProxyMap(p profiles.ProxyNode) map[string]any {

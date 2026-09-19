@@ -86,7 +86,40 @@ func TestBuildAppWhitelistForcesRedirHost(t *testing.T) {
 		t.Fatalf("expected endpoint-independent-nat for whitelist:\n%s", text)
 	}
 	if strings.Contains(text, "sniffer:") {
-		t.Fatalf("sniffer should be off for app split-tunnel:\n%s", text)
+		t.Fatalf("sniffer should be off for app split-tunnel without site rules:\n%s", text)
+	}
+}
+
+func TestBuildAppRoutingKeepsSnifferForSiteRules(t *testing.T) {
+	raw, err := Build(BuildInput{
+		Profile: profiles.Profile{
+			Name: "Work",
+			Proxies: []profiles.ProxyNode{
+				{"name": "node-a", "type": "ss", "server": "a.example", "port": 443, "cipher": "aes-128-gcm", "password": "x"},
+			},
+		},
+		TUN:             true,
+		DNSEnhancedMode: "fake-ip",
+		Sniffer:         true,
+		AppRouteMode:    AppRouteWhitelist,
+		AppRouteList:    "Telegram.exe",
+		RouteProxy:      "api2.cursor.sh\n*.authentication.cursor.sh",
+	})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	text := string(raw)
+	if !strings.Contains(text, "sniffer:") {
+		t.Fatalf("expected sniffer when site rules + app routing:\n%s", text)
+	}
+	if !strings.Contains(text, "force-dns-mapping: true") {
+		t.Fatalf("expected force-dns-mapping:\n%s", text)
+	}
+	if !strings.Contains(text, "DOMAIN-SUFFIX,api2.cursor.sh") {
+		t.Fatalf("expected cursor domain rule:\n%s", text)
+	}
+	if !strings.Contains(text, "PROCESS-NAME,Telegram.exe,") {
+		t.Fatalf("expected app process rule:\n%s", text)
 	}
 }
 

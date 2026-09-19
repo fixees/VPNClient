@@ -486,11 +486,95 @@ func (a *App) SaveSettings(s profiles.Settings) error {
 		return err
 	}
 	if reconnect {
-		_ = a.Disconnect()
-		if err := a.Connect(); err != nil {
-			return fmt.Errorf("настройки сохранены, но переподключение не удалось: %w", err)
+		if coreNeedsProcessRestart(prev, &s) {
+			_ = a.Disconnect()
+			if err := a.Connect(); err != nil {
+				return fmt.Errorf("настройки сохранены, но переподключение не удалось: %w", err)
+			}
+			return nil
+		}
+		if err := a.reloadRunningConfig(); err != nil {
+			a.log.Warn("hot reload failed, full reconnect: %v", err)
+			_ = a.Disconnect()
+			if err2 := a.Connect(); err2 != nil {
+				return fmt.Errorf("настройки сохранены, но переподключение не удалось: %w", err2)
+			}
 		}
 	}
+	return nil
+}
+
+func coreNeedsProcessRestart(prev, next *profiles.Settings) bool {
+	if prev == nil || next == nil {
+		return true
+	}
+	return prev.TUN != next.TUN ||
+		prev.TUNStack != next.TUNStack ||
+		prev.MixedPort != next.MixedPort ||
+		prev.AllowLAN != next.AllowLAN ||
+		prev.UseSystemProxy != next.UseSystemProxy ||
+		prev.ControllerURL != next.ControllerURL ||
+		prev.Secret != next.Secret ||
+		prev.KillSwitch != next.KillSwitch ||
+		prev.DNSLeakProtection != next.DNSLeakProtection ||
+		prev.WARPEnabled != next.WARPEnabled ||
+		prev.WARPMode != next.WARPMode ||
+		prev.WARPPrivateKey != next.WARPPrivateKey ||
+		prev.WARPLocalAddress != next.WARPLocalAddress ||
+		prev.WARPEndpoint != next.WARPEndpoint ||
+		prev.WARPPublicKey != next.WARPPublicKey ||
+		prev.WARPCleanIP != next.WARPCleanIP ||
+		prev.WARPPort != next.WARPPort ||
+		prev.WARPNoiseCount != next.WARPNoiseCount ||
+		prev.WARPNoiseMode != next.WARPNoiseMode ||
+		prev.WARPNoiseSize != next.WARPNoiseSize ||
+		prev.WARPNoiseDelay != next.WARPNoiseDelay ||
+		prev.VPNInterface != next.VPNInterface
+}
+
+// reloadRunningConfig rebuilds YAML and asks mihomo to reload without tearing down TUN.
+func (a *App) reloadRunningConfig() error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.settings == nil || a.manager == nil || !a.manager.Running() || a.api == nil {
+		return fmt.Errorf("vpn is not running")
+	}
+	if a.settings.ActiveProfile == "" {
+		return fmt.Errorf("no active profile selected")
+	}
+	profile, err := a.store.Get(a.settings.ActiveProfile)
+	if err != nil {
+		return err
+	}
+	in := config.FromSettings(a.settings)
+	in.Profile = profile
+	in.ProxyGroup = a.proxyGroup()
+	doc, err := config.Build(in)
+	if err != nil {
+		return err
+	}
+	cfgPath := a.paths.RuntimeConfig()
+	if abs, err := filepath.Abs(cfgPath); err == nil {
+		cfgPath = abs
+	}
+	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(cfgPath, doc, 0o600); err != nil {
+		return err
+	}
+	if err := a.api.ReloadConfig(cfgPath); err != nil {
+		return err
+	}
+	_ = a.api.CloseConnections()
+	if a.settings.SelectedNode != "" {
+		group := a.proxyGroup()
+		if err := a.api.SelectProxy(group, a.settings.SelectedNode); err != nil {
+			a.log.Warn("restore selected node after reload: %v", err)
+		}
+	}
+	a.clearPublicIPCache()
+	a.log.Info("reloaded routing config profile=%s", a.settings.ActiveProfile)
 	return nil
 }
 
@@ -994,6 +1078,16 @@ func (a *App) recoverOrphanNetworkState() {
 	} else if cleared && a.log != nil {
 		a.log.Info("cleared orphan system proxy 127.0.0.1:%d", port)
 	}
+
+	// Reap mihomo left behind after Task Manager kill of the UI.
+	if a.paths != nil {
+		coreBin := a.paths.CoreBinary()
+		if n, err := winutil.KillProcessesWithImagePath(coreBin); err != nil && a.log != nil {
+			a.log.Warn("startup orphan core cleanup: %v", err)
+		} else if n > 0 && a.log != nil {
+			a.log.Info("killed %d orphan core process(es) at %s", n, coreBin)
+		}
+	}
 }
 
 // autostartConnect runs after Windows logon launch (--autostart).
@@ -1019,7 +1113,7 @@ func (a *App) autostartConnect() {
 	if a.manager != nil && a.manager.Running() {
 		return
 	}
-	if err := a.Connect(); err != nil {
+	if _, err := a.ConnectAndProbe(); err != nil {
 		if a.log != nil {
 			a.log.Warn("autostart connect failed: %v", err)
 		}
@@ -1130,7 +1224,8 @@ func (a *App) ToggleConnect() error {
 	if a.manager != nil && a.manager.Running() {
 		return a.Disconnect()
 	}
-	return a.Connect()
+	_, err := a.ConnectAndProbe()
+	return err
 }
 
 func (a *App) GetTraffic() map[string]any {
@@ -1387,9 +1482,16 @@ func (a *App) emitNodePing(name, phase string, delay int, errMsg string) {
 	runtime.EventsEmit(a.ctx, "node:ping", payload)
 }
 
-// ConnectAndProbe connects (if needed) and runs latency tests for all nodes.
+// ConnectAndProbe syncs subscriptions, connects (if needed), and pings all nodes.
 func (a *App) ConnectAndProbe() ([]NodeDelayResult, error) {
 	if a.manager == nil || !a.manager.Running() {
+		if n, err := a.SyncAllSubscriptions(); err != nil {
+			if a.log != nil {
+				a.log.Warn("subscription sync before connect: %v", err)
+			}
+		} else if n > 0 && a.log != nil {
+			a.log.Info("synced %d subscriptions before connect", n)
+		}
 		if err := a.Connect(); err != nil {
 			return nil, err
 		}

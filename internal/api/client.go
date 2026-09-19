@@ -434,6 +434,19 @@ func (c *Client) SetMode(mode string) error {
 	return nil
 }
 
+// ReloadConfig asks mihomo to reload rules/DNS from an on-disk config path.
+func (c *Client) ReloadConfig(path string) error {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return fmt.Errorf("config path is empty")
+	}
+	payload, err := json.Marshal(map[string]string{"path": path})
+	if err != nil {
+		return err
+	}
+	return c.doJSON(http.MethodPut, "/configs?force=true", payload, nil)
+}
+
 // Mode reads current mode from /configs.
 func (c *Client) Mode() (string, error) {
 	var cfg struct {

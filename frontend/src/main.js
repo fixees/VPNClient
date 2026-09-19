@@ -866,7 +866,7 @@ function renderAppRoutePanel(s) {
     <div class="panel">
       <div class="panel-title">Приложения</div>
       <p class="muted rules-hint">Можно пускать через VPN только выбранные программы (или наоборот — исключить их). Нужен режим «Весь трафик системы». Пример: белый список с Telegram — в VPN уйдёт только он, браузер и остальное работают как обычно.</p>
-      <p class="muted rules-hint">Пока включён этот режим, блокировка интернета без VPN и защита DNS отключаются сами — иначе сайты вне списка перестанут открываться. После смены списка подождите переподключение.</p>
+      <p class="muted rules-hint">Пока включён этот режим, блокировка интернета без VPN и защита DNS отключаются сами — иначе сайты вне списка перестанут открываться. Смена списка применяется сразу, без ручного перезапуска.</p>
       <label class="field">Режим для приложений
         <select name="appRouteMode" id="app-route-mode">
           <option value="off" ${mode === 'off' ? 'selected' : ''}>Выключено — как настроено выше</option>
@@ -922,7 +922,7 @@ function renderSettingsRouting(s) {
       <div class="panel">
         <div class="panel-title">Свои правила для сайтов</div>
         ${switchRow('routeWhitelist', !!s.routeWhitelist, 'Только перечисленные сайты', 'Всё, чего нет в списках ниже, будет заблокировано')}
-        <p class="muted rules-hint">По одному адресу в строке: сайт (example.com), подсеть (192.168.0.0/16) или шаблон. Сначала действует «Блок», потом «Без VPN», потом «Через VPN»${s.routeWhitelist ? ', остальное закрыто' : ', затем правило страны выше'}.</p>
+        <p class="muted rules-hint">По одному адресу в строке: сайт (example.com), подсеть (192.168.0.0/16) или шаблон. Сначала действует «Блок», потом «Без VPN», потом «Через VPN»${s.routeWhitelist ? ', остальное закрыто' : ', затем правило страны выше'}. Вместе с режимом «Приложения» доменные списки тоже работают (по SNI) — например Cursor через VPN по списку сайтов, даже если самого Cursor.exe нет в приложениях.</p>
         <label class="field">Блокировать
           <textarea name="routeBlock" rows="5" placeholder="ads.example.com&#10;tracker.example.com">${escapeHtml(s.routeBlock || '')}</textarea>
         </label>
@@ -1731,7 +1731,7 @@ async function boot() {
     settingsSaveTimer = window.setTimeout(() => {
       settingsSaveTimer = 0
       persistSettingsForm(form).catch(() => {})
-    }, 450)
+    }, 900)
   }
 
   // Paint + wire clicks before any backend await (hang must not block UI).
@@ -1886,10 +1886,16 @@ async function boot() {
           await setView('profiles')
           return
         }
+        const connecting = state.status.state !== 'connected'
         state.busy = true
         paintLive()
+        if (connecting) {
+          showToast('Подключаю, обновляю подписки и проверяю серверы…', true)
+          state.pinging = {}
+        }
         await bridge.ToggleConnect()
         state.busy = false
+        state.pinging = {}
         state.publicIP = ''
         await refresh({ force: true })
         refreshPublicIP({ force: true }).catch(() => {})
