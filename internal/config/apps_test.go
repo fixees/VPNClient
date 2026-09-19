@@ -79,8 +79,14 @@ func TestBuildAppWhitelistForcesRedirHost(t *testing.T) {
 	if !strings.Contains(text, "find-process-mode: always") {
 		t.Fatalf("expected find-process-mode:\n%s", text)
 	}
-	if !strings.Contains(text, "override-destination: false") {
-		t.Fatalf("expected sniffer override-destination false:\n%s", text)
+	if !strings.Contains(text, "direct-nameserver:") || !strings.Contains(text, "system") {
+		t.Fatalf("expected direct-nameserver system:\n%s", text)
+	}
+	if !strings.Contains(text, "endpoint-independent-nat: true") {
+		t.Fatalf("expected endpoint-independent-nat for whitelist:\n%s", text)
+	}
+	if strings.Contains(text, "sniffer:") {
+		t.Fatalf("sniffer should be off for app split-tunnel:\n%s", text)
 	}
 }
 

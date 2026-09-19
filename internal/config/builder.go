@@ -103,6 +103,8 @@ func Build(in BuildInput) ([]byte, error) {
 	}
 
 	appRouting := AppRoutingEnabled(in)
+	appMode := NormalizeAppRouteMode(in.AppRouteMode)
+	appWhitelist := appMode == AppRouteWhitelist && len(ParseAppList(in.AppRouteList)) > 0
 	// fake-ip breaks DIRECT apps that still traverse TUN (Discord RTC/QUIC, etc.).
 	// App split-tunnel always has some PROCESS → DIRECT path, so prefer redir-host.
 	dnsMode := in.DNSEnhancedMode
@@ -154,6 +156,13 @@ func Build(in BuildInput) ([]byte, error) {
 		// (used to resolve proxy node hostnames without rule recursion).
 		dns["respect-rules"] = true
 		dns["proxy-server-nameserver"] = append([]string(nil), in.DNSNameservers...)
+		// DIRECT apps (browser etc.) should use the OS resolver — DoT fallback via
+		// TUN is a common cause of “HTML loads, CSS/CDN never arrives”.
+		dns["direct-nameserver"] = []string{"system"}
+	}
+	if appWhitelist {
+		// Most traffic is DIRECT: skip slow TLS DNS fallbacks that queue behind TUN.
+		dns["fallback"] = []string{}
 	}
 
 	doc := map[string]any{
@@ -197,7 +206,7 @@ func Build(in BuildInput) ([]byte, error) {
 		if device == "" {
 			device = defaults.DefaultVPNIface
 		}
-		doc["tun"] = map[string]any{
+		tun := map[string]any{
 			"enable":                true,
 			"device-name":           device,
 			"stack":                 in.TUNStack,
@@ -205,15 +214,20 @@ func Build(in BuildInput) ([]byte, error) {
 			"auto-detect-interface": true,
 			"dns-hijack":            []string{"any:53"},
 		}
+		if appWhitelist {
+			// Helps UDP/TCP NAT reuse for many parallel DIRECT browser connections.
+			tun["endpoint-independent-nat"] = true
+		}
+		doc["tun"] = tun
 	}
 
-	if in.Sniffer {
-		// override-destination + fake-ip/sniff remaps can break DIRECT RTC apps under TUN.
-		overrideDest := !appRouting
+	// Sniffer on every DIRECT browser flow under TUN is expensive and often stalls CDNs.
+	// Keep it only when traffic is mostly proxied (no app split-tunnel).
+	if in.Sniffer && !appRouting {
 		doc["sniffer"] = map[string]any{
 			"enable":               true,
 			"parse-pure-ip":        true,
-			"override-destination": overrideDest,
+			"override-destination": true,
 			"sniff": map[string]any{
 				"TLS": map[string]any{
 					"ports": []any{443, "8443"},

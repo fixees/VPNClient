@@ -863,7 +863,7 @@ function renderAppRoutePanel(s) {
     <div class="panel">
       <div class="panel-title">Приложения (split-tunnel)</div>
       <p class="muted rules-hint">Маршрут по имени процесса (<code>PROCESS-NAME</code>). Нужен <strong>TUN</strong>. Пример: белый список + <code>AyuGram.exe</code> — VPN только для этого приложения, остальной трафик мимо.</p>
-      <p class="muted rules-hint">В режиме приложений DNS переключается на <code>redir-host</code> (иначе Discord и похожие DIRECT-приложения ломаются на fake-ip). Kill Switch / DNS leak в белом списке автоматически отключаются — они режут DIRECT.</p>
+      <p class="muted rules-hint">В режиме приложений DNS → <code>redir-host</code> + системный resolver для DIRECT (иначе Discord/браузер вне списка тормозят на fake-ip/DoT). Sniffer отключается. Kill Switch / DNS leak в белом списке не применяются. После смены списка — дождитесь переподключения.</p>
       <label class="field">Режим приложений
         <select name="appRouteMode" id="app-route-mode">
           <option value="off" ${mode === 'off' ? 'selected' : ''}>Выключено</option>
