@@ -1,9 +1,15 @@
 # Build a distributable Windows zip for MyInternetVPN (+ checksum + Ed25519 signature).
 # Single-file exe: mihomo/geo/icons are embedded and extracted to AppData at runtime.
 # Output:
-#   dist/package/MyInternetVPN-windows-amd64-<version>.zip   (contains only the .exe)
-#   dist/package/MyInternetVPN-windows-amd64-<version>.zip.sha256
-#   dist/package/MyInternetVPN-windows-amd64-<version>.zip.sig
+#   dist/package/<asset>.zip
+#   dist/package/<asset>.zip.sha256
+#   dist/package/<asset>.zip.sig
+#   dist/package/<asset>.zip.version
+#
+# APP_VERSION          → embedded in the binary (short git sha / date)
+# PACKAGE_ASSET_NAME   → optional fixed zip basename without .zip
+#                        (CI uses MyInternetVPN-windows-amd64 so rolling
+#                        release overwrite_files can replace old assets)
 $ErrorActionPreference = 'Stop'
 
 $root = Resolve-Path (Join-Path $PSScriptRoot '..')
@@ -13,8 +19,13 @@ $version = $env:APP_VERSION
 if (-not $version) {
   $version = (Get-Date -Format 'yyyyMMdd-HHmmss')
 }
-if ($version.Length -gt 12 -and $version -match '^[0-9a-f]+$') {
+if ($version.Length -gt 12 -and $version -match '^[0-9a-fA-F]+$') {
   $version = $version.Substring(0, 12)
+}
+
+$assetBase = $env:PACKAGE_ASSET_NAME
+if (-not $assetBase) {
+  $assetBase = "MyInternetVPN-windows-amd64-$version"
 }
 
 Write-Host "==> Frontend"
@@ -44,7 +55,7 @@ New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 $ldflags = "-w -s -H windowsgui -X main.version=$version"
 go build -tags "desktop,production" -ldflags $ldflags -o (Join-Path $outDir 'MyInternetVPN.exe') .
 
-$zipName = "MyInternetVPN-windows-amd64-$version.zip"
+$zipName = "$assetBase.zip"
 $pkgDir = Join-Path $root 'dist\package'
 $zipPath = Join-Path $pkgDir $zipName
 New-Item -ItemType Directory -Force -Path $pkgDir | Out-Null
@@ -57,6 +68,11 @@ $hash = (Get-FileHash -Algorithm SHA256 -Path $zipPath).Hash.ToLowerInvariant()
 $shaPath = "$zipPath.sha256"
 Set-Content -Path $shaPath -Value "$hash  $zipName" -NoNewline
 Write-Host "Checksum: $shaPath"
+
+# Sidecar so the updater can match the installed build without hashing the zip name.
+$verPath = "$zipPath.version"
+Set-Content -Path $verPath -Value $version -NoNewline
+Write-Host "Build id: $verPath ($version)"
 
 Write-Host "==> Sign package"
 $privPath = if ($env:UPDATE_SIGNING_KEY_FILE) { $env:UPDATE_SIGNING_KEY_FILE } else { Join-Path $root 'secrets\update_ed25519_private.key' }
@@ -72,3 +88,4 @@ go run ./scripts/sign-release $zipPath $privPath $sigPath
 
 Write-Host "Package (single exe): $zipPath"
 Write-Host "Signature: $sigPath"
+Write-Host "Version sidecar: $verPath"

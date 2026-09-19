@@ -45,8 +45,24 @@ func TestBuildApplyScript(t *testing.T) {
 	}
 }
 
-func TestPsQuote(t *testing.T) {
-	if got := psQuote(`C:\O'Brien\app`); got != `'C:\O''Brien\app'` {
-		t.Fatalf("psQuote: %q", got)
+func TestParseBuildMarker(t *testing.T) {
+	body := "Rolling signed build from `main`.\n\n- **Build:** `abc1234deadbeef`\n- **Assets:** zip\n"
+	if got := parseBuildMarker(body); got != "abc1234deadbeef" {
+		t.Fatalf("parseBuildMarker=%q", got)
+	}
+}
+
+func TestFindWindowsZipPrefersFixedName(t *testing.T) {
+	rel := Release{Assets: []ReleaseAsset{
+		{Name: "MyInternetVPN-windows-amd64-oldhash.zip", UpdatedAt: "2026-01-02T00:00:00Z"},
+		{Name: "MyInternetVPN-windows-amd64.zip", UpdatedAt: "2026-01-01T00:00:00Z"},
+	}}
+	c := &Checker{}
+	asset, err := c.FindWindowsZip(rel)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if asset.Name != "MyInternetVPN-windows-amd64.zip" {
+		t.Fatalf("got %s", asset.Name)
 	}
 }

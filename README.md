@@ -127,7 +127,13 @@ go test ./tests/... -count=1
 Workflow: [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
 
 - Push or pull request to `main` / `dev`: run tests, build frontend, compile the application
-- Push to `main`: produce `MyInternetVPN-windows-amd64-*.zip`, upload the Actions artifact, refresh the `latest-main` GitHub release
+- Push to `main`: produce a rolling GitHub release `latest-main` with stable asset names:
+  - `MyInternetVPN-windows-amd64.zip`
+  - `MyInternetVPN-windows-amd64.zip.sha256`
+  - `MyInternetVPN-windows-amd64.zip.sig`
+  - `MyInternetVPN-windows-amd64.zip.version`
+
+Each push to `main` **replaces** those assets (older hash-named builds are pruned). The commit SHA is recorded in the release notes and embedded in the binary.
 
 ## License and product
 

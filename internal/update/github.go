@@ -26,11 +26,13 @@ type ReleaseAsset struct {
 	Name               string `json:"name"`
 	BrowserDownloadURL string `json:"browser_download_url"`
 	Size               int64  `json:"size"`
+	UpdatedAt          string `json:"updated_at"`
 }
 
 type Release struct {
 	TagName string         `json:"tag_name"`
 	Name    string         `json:"name"`
+	Body    string         `json:"body"`
 	Assets  []ReleaseAsset `json:"assets"`
 }
 
@@ -38,6 +40,7 @@ type AvailableUpdate struct {
 	Tag      string
 	Asset    ReleaseAsset
 	Download string
+	BuildID  string
 }
 
 func NewGitHub(owner, repo, tag string) *Checker {
@@ -82,21 +85,37 @@ func (c *Checker) FetchRelease() (Release, error) {
 	return rel, nil
 }
 
-// FindWindowsZip picks the first MyInternetVPN windows amd64 zip asset.
+// FindWindowsZip picks the stable windows amd64 zip asset (prefers fixed name).
 func (c *Checker) FindWindowsZip(rel Release) (ReleaseAsset, error) {
+	prefer := strings.ToLower(defaults.ReleasePrefix) + "-windows-amd64.zip"
+	var fallback ReleaseAsset
+	foundFallback := false
 	for _, a := range rel.Assets {
 		name := strings.ToLower(a.Name)
-		if strings.Contains(name, "windows") && strings.HasSuffix(name, ".zip") {
+		if name == prefer {
 			return a, nil
+		}
+		if strings.Contains(name, "windows") && strings.HasSuffix(name, ".zip") {
+			if !foundFallback || strings.Compare(a.UpdatedAt, fallback.UpdatedAt) > 0 {
+				fallback = a
+				foundFallback = true
+			}
+			continue
 		}
 		if strings.HasPrefix(name, strings.ToLower(defaults.ReleasePrefix)+"-") && strings.HasSuffix(name, ".zip") {
-			return a, nil
+			if !foundFallback || strings.Compare(a.UpdatedAt, fallback.UpdatedAt) > 0 {
+				fallback = a
+				foundFallback = true
+			}
 		}
+	}
+	if foundFallback {
+		return fallback, nil
 	}
 	return ReleaseAsset{}, fmt.Errorf("no windows zip asset in release %s", rel.TagName)
 }
 
-// Check returns an update when remote asset name/tag differs from currentVersion marker.
+// Check returns an update when remote build id differs from currentVersion.
 func (c *Checker) Check(currentVersion string) (AvailableUpdate, bool, error) {
 	rel, err := c.FetchRelease()
 	if err != nil {
@@ -106,10 +125,39 @@ func (c *Checker) Check(currentVersion string) (AvailableUpdate, bool, error) {
 	if err != nil {
 		return AvailableUpdate{}, false, err
 	}
-	if VersionMatches(currentVersion, asset.Name, rel.TagName) {
+	buildID := RemoteBuildID(rel, asset)
+	if VersionMatches(currentVersion, asset.Name, rel.TagName) ||
+		VersionMatches(currentVersion, rel.Body, "") ||
+		VersionMatches(currentVersion, buildID, "") {
 		return AvailableUpdate{}, false, nil
 	}
-	return AvailableUpdate{Tag: rel.TagName, Asset: asset, Download: asset.BrowserDownloadURL}, true, nil
+	return AvailableUpdate{
+		Tag:      rel.TagName,
+		Asset:    asset,
+		Download: asset.BrowserDownloadURL,
+		BuildID:  buildID,
+	}, true, nil
+}
+
+// RemoteBuildID extracts the published build marker from release metadata.
+func RemoteBuildID(rel Release, _ ReleaseAsset) string {
+	return parseBuildMarker(rel.Body)
+}
+
+func parseBuildMarker(body string) string {
+	for _, raw := range strings.Split(body, "\n") {
+		line := strings.TrimSpace(raw)
+		line = strings.TrimPrefix(line, "-")
+		line = strings.TrimSpace(line)
+		line = strings.ReplaceAll(line, "*", "")
+		lower := strings.ToLower(line)
+		if !strings.HasPrefix(lower, "build:") {
+			continue
+		}
+		v := strings.TrimSpace(line[len("build:"):])
+		return strings.Trim(v, "` ")
+	}
+	return ""
 }
 
 // VersionMatches reports whether the running build already corresponds to the

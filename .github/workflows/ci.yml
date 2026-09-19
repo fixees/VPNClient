@@ -101,6 +101,7 @@ jobs:
         shell: pwsh
         env:
           APP_VERSION: ${{ github.sha }}
+          PACKAGE_ASSET_NAME: MyInternetVPN-windows-amd64
           UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -118,8 +119,30 @@ jobs:
             dist/package/*.zip
             dist/package/*.sha256
             dist/package/*.sig
+            dist/package/*.version
           if-no-files-found: error
           retention-days: 30
+
+      - name: Prune old rolling-release assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $keep = @(
+            'MyInternetVPN-windows-amd64.zip',
+            'MyInternetVPN-windows-amd64.zip.sha256',
+            'MyInternetVPN-windows-amd64.zip.sig',
+            'MyInternetVPN-windows-amd64.zip.version'
+          )
+          $assets = gh release view latest-main --json assets -q ".assets[].name" 2>$null
+          if (-not $assets) { Write-Host 'No existing latest-main release'; return }
+          foreach ($name in ($assets -split "`n")) {
+            $name = $name.Trim()
+            if (-not $name) { continue }
+            if ($keep -contains $name) { continue }
+            Write-Host "Deleting stale asset: $name"
+            gh release delete-asset latest-main $name --yes
+          }
 
       - name: Publish rolling GitHub Release
         uses: softprops/action-gh-release@v3
@@ -127,12 +150,15 @@ jobs:
           tag_name: latest-main
           name: Latest main build
           body: |
-            Stable signed package from `main` (`${{ github.sha }}`).
-            Assets: `.zip` + `.sha256` + `.sig` (Ed25519).
+            Rolling signed build from `main`.
+
+            - **Build:** `${{ github.sha }}`
+            - **Assets:** `MyInternetVPN-windows-amd64.zip` + `.sha256` + `.sig` + `.version`
           files: |
-            dist/package/*.zip
-            dist/package/*.sha256
-            dist/package/*.sig
+            dist/package/MyInternetVPN-windows-amd64.zip
+            dist/package/MyInternetVPN-windows-amd64.zip.sha256
+            dist/package/MyInternetVPN-windows-amd64.zip.sig
+            dist/package/MyInternetVPN-windows-amd64.zip.version
           make_latest: true
           overwrite_files: true
           fail_on_unmatched_files: true
