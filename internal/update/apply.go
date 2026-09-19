@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"myinternetvpn/client/internal/defaults"
@@ -15,8 +16,8 @@ import (
 )
 
 // ApplyZip extracts a release zip next to the running executable and launches a
-// Windows helper script that replaces files after the process exits.
-func ApplyZip(zipPath, targetDir string) (helperPath string, err error) {
+// hidden PowerShell helper that replaces files after this process exits.
+func ApplyZip(zipPath, targetDir, exeName string) (helperPath string, err error) {
 	if runtime.GOOS != "windows" {
 		return "", fmt.Errorf("apply update is only implemented for Windows")
 	}
@@ -28,6 +29,12 @@ func ApplyZip(zipPath, targetDir string) (helperPath string, err error) {
 	if err != nil {
 		return "", err
 	}
+	exeName = strings.TrimSpace(exeName)
+	if exeName == "" {
+		exeName = defaults.ProductExe
+	}
+	exeName = filepath.Base(exeName)
+
 	stage := filepath.Join(filepath.Dir(zipPath), "staging")
 	_ = os.RemoveAll(stage)
 	if err := os.MkdirAll(stage, 0o755); err != nil {
@@ -37,32 +44,55 @@ func ApplyZip(zipPath, targetDir string) (helperPath string, err error) {
 		return "", err
 	}
 
-	pid := os.Getpid()
-	helperPath = filepath.Join(filepath.Dir(zipPath), "apply-update.bat")
-	script := fmt.Sprintf(`@echo off
-setlocal
-set PID=%d
-set STAGE=%s
-set TARGET=%s
-:wait
-tasklist /FI "PID eq %%PID%%" | find "%d" >nul
-if not errorlevel 1 (
-  timeout /t 1 /nobreak >nul
-  goto wait
-)
-xcopy /E /Y /I "%%STAGE%%\*" "%%TARGET%%\" >nul
-start "" "%%TARGET%%\%s"
-`, pid, stage, targetDir, pid, defaults.ProductExe)
+	startExe := exeName
+	if _, statErr := os.Stat(filepath.Join(stage, startExe)); statErr != nil {
+		startExe = defaults.ProductExe
+	}
 
+	helperPath = filepath.Join(filepath.Dir(zipPath), "apply-update.ps1")
+	script := buildApplyScript(os.Getpid(), stage, targetDir, startExe)
 	if err := os.WriteFile(helperPath, []byte(script), 0o755); err != nil {
 		return "", err
 	}
-	cmd := exec.Command("cmd", "/C", "start", "/MIN", "", helperPath)
+
+	cmd := exec.Command(
+		"powershell.exe",
+		"-NoProfile",
+		"-NonInteractive",
+		"-ExecutionPolicy", "Bypass",
+		"-WindowStyle", "Hidden",
+		"-File", helperPath,
+	)
 	winutil.HideConsole(cmd)
 	if err := cmd.Start(); err != nil {
 		return "", err
 	}
 	return helperPath, nil
+}
+
+func buildApplyScript(pid int, stage, target, exeName string) string {
+	var b strings.Builder
+	b.WriteString("$ErrorActionPreference = 'Stop'\n")
+	b.WriteString("$ProgressPreference = 'SilentlyContinue'\n")
+	b.WriteString("$pidToWait = " + strconv.Itoa(pid) + "\n")
+	b.WriteString("$stage = " + psQuote(stage) + "\n")
+	b.WriteString("$target = " + psQuote(target) + "\n")
+	b.WriteString("$exe = " + psQuote(exeName) + "\n")
+	b.WriteString(`try { Wait-Process -Id $pidToWait -ErrorAction SilentlyContinue } catch {}
+Start-Sleep -Milliseconds 400
+if (-not (Test-Path -LiteralPath $stage)) { exit 1 }
+New-Item -ItemType Directory -Force -Path $target | Out-Null
+Copy-Item -LiteralPath (Join-Path $stage '*') -Destination $target -Recurse -Force
+$launch = Join-Path $target $exe
+if (Test-Path -LiteralPath $launch) {
+  Start-Process -FilePath $launch
+}
+`)
+	return b.String()
+}
+
+func psQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
 }
 
 func ExtractZip(src, dest string) error {

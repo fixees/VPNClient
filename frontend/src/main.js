@@ -1960,11 +1960,20 @@ async function boot() {
         const res = await bridge.CheckForUpdate()
         if (!res?.available) {
           showToast(res?.reason || 'У вас актуальная версия', true)
-        } else {
-          state.lastZip = await bridge.DownloadUpdate()
-          await bridge.ApplyUpdate(state.lastZip)
-          showToast('Обновление установлено, перезапуск…', true)
+          return
         }
+        const label = res.name || res.tag || 'новая версия'
+        const size = Number(res.size || 0)
+        const sizeHint = size > 0 ? `\nРазмер: ${Math.round(size / (1024 * 1024))} МБ` : ''
+        if (!window.confirm(`Доступно обновление: ${label}${sizeHint}\n\nСкачать и установить сейчас? Клиент перезапустится.`)) {
+          showToast('Обновление отменено', true)
+          return
+        }
+        showToast('Скачиваю обновление…', true)
+        state.lastZip = await bridge.DownloadUpdate()
+        showToast('Устанавливаю обновление…', true)
+        await bridge.ApplyUpdate(state.lastZip)
+        showToast('Обновление установлено, перезапуск…', true)
         return
       }
       if (profile) {

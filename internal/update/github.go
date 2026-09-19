@@ -106,11 +106,58 @@ func (c *Checker) Check(currentVersion string) (AvailableUpdate, bool, error) {
 	if err != nil {
 		return AvailableUpdate{}, false, err
 	}
-	// Compare against short sha embedded in filename or app version.
-	if currentVersion != "" && (strings.Contains(asset.Name, currentVersion) || rel.TagName == currentVersion) {
+	if VersionMatches(currentVersion, asset.Name, rel.TagName) {
 		return AvailableUpdate{}, false, nil
 	}
 	return AvailableUpdate{Tag: rel.TagName, Asset: asset, Download: asset.BrowserDownloadURL}, true, nil
+}
+
+// VersionMatches reports whether the running build already corresponds to the
+// remote release asset (full/short git sha in filename, or identical tag).
+func VersionMatches(currentVersion, assetName, tag string) bool {
+	current := strings.TrimSpace(currentVersion)
+	if current == "" {
+		return false
+	}
+	// Local/dev builds are never considered "same as release".
+	lower := strings.ToLower(current)
+	if lower == "dev" || lower == "development" || lower == "local" {
+		return false
+	}
+	assetLower := strings.ToLower(assetName)
+	curLower := strings.ToLower(current)
+	if strings.EqualFold(strings.TrimSpace(tag), current) {
+		return true
+	}
+	if strings.Contains(assetLower, curLower) {
+		return true
+	}
+	// Git short SHAs embedded via -ldflags / CI (7–12 hex chars).
+	if isGitSHA(current) {
+		short := curLower
+		if len(short) > 12 {
+			short = short[:12]
+		}
+		if len(short) >= 7 && strings.Contains(assetLower, short[:7]) {
+			return true
+		}
+		if strings.Contains(assetLower, short) {
+			return true
+		}
+	}
+	return false
+}
+
+func isGitSHA(s string) bool {
+	if len(s) < 7 || len(s) > 40 {
+		return false
+	}
+	for _, r := range s {
+		if (r < '0' || r > '9') && (r < 'a' || r > 'f') && (r < 'A' || r > 'F') {
+			return false
+		}
+	}
+	return true
 }
 
 // DownloadTo stores the asset into destDir and returns the local zip path.

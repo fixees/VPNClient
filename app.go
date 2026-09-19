@@ -1224,7 +1224,7 @@ func (a *App) ApplyUpdate(zipPath string) error {
 		return err
 	}
 	target := filepath.Dir(exe)
-	helper, err := update.ApplyZip(zipPath, target)
+	helper, err := update.ApplyZip(zipPath, target, filepath.Base(exe))
 	if err != nil {
 		return err
 	}
