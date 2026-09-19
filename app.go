@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -32,6 +33,7 @@ import (
 	"myinternetvpn/client/internal/winutil"
 
 	"github.com/getlantern/systray"
+	qrcode "github.com/skip2/go-qrcode"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -715,6 +717,32 @@ func (a *App) GetSubscriptionInfo(name string) (map[string]any, error) {
 		"expireUnix":          p.Quota.ExpireUnix,
 		"expired":             p.Quota.Expired(),
 	}, nil
+}
+
+// GenerateSubscriptionQR generates a QR code for a profile's subscription URL as a base64-encoded PNG.
+// Returns empty string if the profile has no subscription URL.
+func (a *App) GenerateSubscriptionQR(name string) (string, error) {
+	p, err := a.store.Get(name)
+	if err != nil {
+		return "", err
+	}
+	subURL := strings.TrimSpace(p.SubscriptionURL)
+	if subURL == "" {
+		return "", fmt.Errorf("profile %q has no subscription URL", name)
+	}
+	
+	// Generate QR code as PNG (256x256 is a good size for screen display).
+	png, err := qrcode.Encode(subURL, qrcode.Medium, 256)
+	if err != nil {
+		return "", fmt.Errorf("generate QR: %w", err)
+	}
+	
+	// Return as data URI (base64-encoded PNG).
+	encoded := "data:image/png;base64," + base64.StdEncoding.EncodeToString(png)
+	if a.log != nil {
+		a.log.Info("generated QR for profile=%s url_len=%d", name, len(subURL))
+	}
+	return encoded, nil
 }
 
 func (a *App) RemoveProfile(name string) error {

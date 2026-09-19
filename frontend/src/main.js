@@ -21,6 +21,7 @@ const icons = {
   lock: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>`,
   auto: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5v3M12 17.5v3M3.5 12h3M17.5 12h3"/><circle cx="12" cy="12" r="3.2"/><path d="M7.2 7.2l1.5 1.5M15.3 15.3l1.5 1.5M16.8 7.2l-1.5 1.5M8.7 15.3l-1.5 1.5"/></svg>`,
   cloudflare: `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.5 17.6H6.2c-2.1 0-3.8-1.7-3.8-3.8 0-1.8 1.3-3.4 3.1-3.7.6-2.5 2.8-4.3 5.4-4.3 2.1 0 4 1.2 4.9 3.1.5-.2 1-.3 1.6-.3 2.3 0 4.1 1.8 4.1 4.1 0 2.3-1.8 4.1-4.1 4.1h-.9z"/><path d="M8.1 14.2h9.3c.9 0 1.7-.7 1.7-1.6 0-.8-.6-1.5-1.4-1.6l-.7-.1-.3-.6c-.6-1.4-2-2.3-3.5-2.3-1.7 0-3.2 1.1-3.7 2.7l-.2.6-.6.1c-1.1.1-1.9 1-1.9 2.1 0 .9.7 1.7 1.7 1.7h-.4z" opacity=".92"/></svg>`,
+  qr: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h2M16 16h2M18 14h2M14 18h2M16 20h2M18 18h3M20 20h1"/></svg>`,
 }
 
 const mock = {
@@ -51,6 +52,9 @@ const mock = {
   async GetLogsTail() { return '' },
   async GenerateWARPConfig() {
     return { privateKey: 'dev', localAddress: '172.16.0.2/32' }
+  },
+  async GenerateSubscriptionQR() {
+    return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg'
   },
 }
 
@@ -417,6 +421,18 @@ function shellHTML() {
         </header>
         <div class="content" id="content"></div>
         <div class="toast" id="toast"></div>
+        <div class="qr-modal-overlay" id="qr-modal-overlay">
+          <div class="qr-modal">
+            <div class="qr-modal-header">
+              <h3 id="qr-modal-title">QR-код подписки</h3>
+              <button class="qr-modal-close" type="button" data-action="close-qr" aria-label="Закрыть">×</button>
+            </div>
+            <div class="qr-modal-body">
+              <img id="qr-modal-img" alt="QR-код подписки" />
+              <p id="qr-modal-hint" class="qr-modal-hint">Отсканируйте этот код на другом устройстве</p>
+            </div>
+          </div>
+        </div>
       </section>
     </div>
   `
@@ -507,6 +523,7 @@ function renderProfiles(state) {
           <span>${count} серверов · ${kind}${p.note ? ' · ' + escapeHtml(p.note) : ''}</span>
         </button>
         <div class="row-actions">
+          ${p.subscriptionURL ? `<button class="icon-ghost" type="button" data-qr="${escapeHtml(p.name)}" title="Показать QR-код">${icons.qr}</button>` : ''}
           ${p.subscriptionURL ? `<button class="icon-ghost" type="button" data-sync="${escapeHtml(p.name)}" title="Обновить">${icons.refresh}</button>` : ''}
           <button class="icon-ghost danger" type="button" data-remove="${escapeHtml(p.name)}" title="Удалить">${icons.trash}</button>
         </div>
@@ -1386,6 +1403,9 @@ async function boot() {
     toastTimer: 0,
     settingsSection: '',
     quotaMenuOpen: false,
+    qrModalOpen: false,
+    qrModalProfile: '',
+    qrModalImage: '',
   }
 
   function showToast(msg, ok = false) {
@@ -1798,6 +1818,12 @@ async function boot() {
         if (card) card.classList.remove('menu-open')
       }
     }
+    if (e.target.id === 'qr-modal-overlay' && state.qrModalOpen) {
+      state.qrModalOpen = false
+      const overlay = document.getElementById('qr-modal-overlay')
+      if (overlay) overlay.classList.remove('show')
+      return
+    }
 
     const nav = e.target.closest('[data-view]')
     if (nav) {
@@ -1878,6 +1904,7 @@ async function boot() {
     const syncOne = e.target.closest('[data-sync]')?.getAttribute('data-sync')
     const remove = e.target.closest('[data-remove]')?.getAttribute('data-remove')
     const node = e.target.closest('[data-node]')?.getAttribute('data-node')
+    const qrProfile = e.target.closest('[data-qr]')?.getAttribute('data-qr')
 
     try {
       if (action === 'toggle') {
@@ -1987,6 +2014,35 @@ async function boot() {
         showToast('Устанавливаю обновление…', true)
         await bridge.ApplyUpdate(state.lastZip)
         showToast('Обновление установлено, перезапуск…', true)
+        return
+      }
+      if (action === 'close-qr') {
+        state.qrModalOpen = false
+        const overlay = document.getElementById('qr-modal-overlay')
+        if (overlay) overlay.classList.remove('show')
+        return
+      }
+      if (qrProfile) {
+        try {
+          showToast('Генерирую QR-код…', true)
+          const qrData = await bridge.GenerateSubscriptionQR(qrProfile)
+          if (!qrData) {
+            showToast('Не удалось создать QR-код', false)
+            return
+          }
+          state.qrModalOpen = true
+          state.qrModalProfile = qrProfile
+          state.qrModalImage = qrData
+          const overlay = document.getElementById('qr-modal-overlay')
+          const img = document.getElementById('qr-modal-img')
+          const title = document.getElementById('qr-modal-title')
+          if (overlay) overlay.classList.add('show')
+          if (img) img.src = qrData
+          if (title) title.textContent = `QR-код: ${qrProfile}`
+          showToast('', false)
+        } catch (err) {
+          showToast(friendlyError(err), false)
+        }
         return
       }
       if (profile) {
