@@ -69,7 +69,10 @@ func NewManager(opts Options) *Manager {
 func (m *Manager) Running() bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.running && m.opts.Runner.Running()
+	if m.running && !m.opts.Runner.Running() {
+		m.running = false
+	}
+	return m.running
 }
 
 func (m *Manager) Start(configYAML []byte) error {
@@ -165,9 +168,11 @@ func (m *Manager) Stop() error {
 }
 
 type execRunner struct {
+	mu      sync.Mutex
 	cmd     *exec.Cmd
 	logFile *os.File
 	done    chan error
+	alive   bool
 }
 
 func (r *execRunner) Start(bin string, args []string, workDir string) error {
@@ -188,30 +193,57 @@ func (r *execRunner) Start(bin string, args []string, workDir string) error {
 		_ = logFile.Close()
 		return err
 	}
+	// Kill mihomo when the UI process dies (Task Manager / crash).
+	_ = winutil.AssignProcessToChildKillJob(cmd.Process.Pid)
+
+	r.mu.Lock()
 	r.cmd = cmd
 	r.logFile = logFile
 	r.done = make(chan error, 1)
+	r.alive = true
+	done := r.done
+	r.mu.Unlock()
+
 	go func() {
 		waitErr := cmd.Wait()
+		r.mu.Lock()
+		r.alive = false
 		if r.logFile != nil {
 			_ = r.logFile.Close()
 			r.logFile = nil
 		}
-		r.done <- waitErr
+		r.mu.Unlock()
+		done <- waitErr
 	}()
 	return nil
 }
 
 func (r *execRunner) Stop(grace time.Duration) error {
-	if r.cmd == nil || r.cmd.Process == nil {
+	r.mu.Lock()
+	cmd := r.cmd
+	done := r.done
+	alive := r.alive
+	r.mu.Unlock()
+	if cmd == nil || cmd.Process == nil {
 		return nil
 	}
-	proc := r.cmd.Process
+	proc := cmd.Process
+	if !alive {
+		r.mu.Lock()
+		r.cmd = nil
+		r.mu.Unlock()
+		return nil
+	}
 	if runtime.GOOS == "windows" {
 		// Interrupt is unreliable for Win32 console-less children; kill promptly.
 		err := proc.Kill()
-		<-r.done
+		if done != nil {
+			<-done
+		}
+		r.mu.Lock()
 		r.cmd = nil
+		r.alive = false
+		r.mu.Unlock()
 		return err
 	}
 	_ = proc.Signal(os.Interrupt)
@@ -219,17 +251,27 @@ func (r *execRunner) Stop(grace time.Duration) error {
 	timer := time.NewTimer(grace)
 	defer timer.Stop()
 	select {
-	case <-r.done:
+	case <-done:
+		r.mu.Lock()
 		r.cmd = nil
+		r.alive = false
+		r.mu.Unlock()
 		return nil
 	case <-timer.C:
 		err := proc.Kill()
-		<-r.done
+		if done != nil {
+			<-done
+		}
+		r.mu.Lock()
 		r.cmd = nil
+		r.alive = false
+		r.mu.Unlock()
 		return err
 	}
 }
 
 func (r *execRunner) Running() bool {
-	return r.cmd != nil && r.cmd.Process != nil
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.alive && r.cmd != nil && r.cmd.Process != nil
 }
