@@ -316,7 +316,7 @@ function friendlyError(err) {
   if (/no active profile/i.test(s)) return 'Сначала добавьте и выберите профиль'
   if (/not connected/i.test(s)) return 'Сначала подключитесь'
   if (/administrator|elevation|ErrNeedAdmin/i.test(s)) return 'Нужны права администратора'
-  if (/kill switch requires/i.test(s)) return 'Kill switch: укажите VPN-интерфейс в настройках'
+  if (/kill switch requires/i.test(s)) return 'Включите «Блокировка без VPN» только после настройки сетевого интерфейса'
   return s.replace(/^Error:\s*/i, '').replace(/^.*?:\s*/, (m) => (m.length > 40 ? '' : m)) || 'Что-то пошло не так'
 }
 
@@ -386,7 +386,7 @@ function shellHTML() {
       <aside class="sidebar">
         <div class="brand-block">
           <div class="brand">Мой <span class="brand-accent">VPN</span></div>
-          <div class="brand-sub">Клиент для VPN</div>
+          <div class="brand-sub">Простой и быстрый VPN</div>
         </div>
         <nav class="nav" id="nav">
           <button class="nav-btn active" data-view="home" type="button">${icons.home}<span>Главная</span></button>
@@ -530,7 +530,7 @@ function renderProfiles(state) {
       <div class="panel-title">Импорт</div>
       <form id="add-form" class="form">
         <label>Ссылка или конфиг
-          <textarea name="proxy" rows="4" placeholder="https://…/subscription&#10;или myvpn://import/https://…&#10;или vless:// / vmess:// / trojan:// / hy2:// / tuic:// / ss://&#10;или Clash YAML" required></textarea>
+          <textarea name="proxy" rows="4" placeholder="Ссылка на подписку (https://…)&#10;или готовая строка сервера&#10;или текст конфигурации" required></textarea>
         </label>
         <label>Название
           <input name="name" placeholder="Например: Основной" />
@@ -630,11 +630,11 @@ function switchRow(name, checked, label, hint) {
 
 const settingsMenu = [
   { id: 'general', title: 'Общие', hint: 'Автозапуск, трей, обновления', icon: 'layers' },
-  { id: 'routing', title: 'Маршрутизация', hint: 'Режим, приложения, правила, GEOIP', icon: 'route' },
-  { id: 'dns', title: 'DNS', hint: 'Резолверы и Fake-IP', icon: 'dns' },
-  { id: 'inbound', title: 'Входящие', hint: 'Порт, TUN, LAN', icon: 'inbox' },
-  { id: 'tricks', title: 'Обход DPI', hint: 'Sniffer и ускорение TCP', icon: 'scissors' },
-  { id: 'warp', title: 'WARP', hint: 'Доп. защита Cloudflare', icon: 'cloud' },
+  { id: 'routing', title: 'Маршрутизация', hint: 'Режим VPN, приложения и сайты', icon: 'route' },
+  { id: 'dns', title: 'DNS', hint: 'Как приложение узнаёт адреса сайтов', icon: 'dns' },
+  { id: 'inbound', title: 'Подключение', hint: 'Порт, полный перехват трафика', icon: 'inbox' },
+  { id: 'tricks', title: 'Ускорение и обход', hint: 'Доп. настройки соединения', icon: 'scissors' },
+  { id: 'warp', title: 'WARP', hint: 'Доп. защита через Cloudflare', icon: 'cloud' },
 ]
 
 const settingsIcons = {
@@ -668,9 +668,9 @@ function renderSettingsMenu(state = {}) {
   const chips = [
     `<span class="about-chip ${connected ? 'ok' : 'off'}">${connected ? 'Подключено' : 'Отключено'}</span>`,
     `<span class="about-chip">${escapeHtml(mode)}</span>`,
-    `<span class="about-chip ${tun ? 'on' : ''}">TUN ${tun ? 'вкл' : 'выкл'}</span>`,
+    `<span class="about-chip ${tun ? 'on' : ''}">${tun ? 'Весь трафик' : 'Только приложения'}</span>`,
     warp ? `<span class="about-chip on">WARP</span>` : '',
-    whitelist ? `<span class="about-chip warn">Белый список</span>` : '',
+    whitelist ? `<span class="about-chip warn">Только свои сайты</span>` : '',
   ].filter(Boolean).join('')
 
   return `
@@ -710,8 +710,8 @@ function renderSettingsMenu(state = {}) {
             <strong>${escapeHtml(String(port))}</strong>
           </div>
           <div class="about-stat">
-            <span class="about-stat-label">Ядро</span>
-            <strong title="mihomo">${escapeHtml(core)}</strong>
+            <span class="about-stat-label">Движок</span>
+            <strong>${escapeHtml(core)}</strong>
           </div>
           <div class="about-stat about-stat-wide">
             <span class="about-stat-label">Публичный IP</span>
@@ -729,13 +729,13 @@ function renderSettingsGeneral(s, v) {
       ${settingsBack()}
       <div class="panel">
         <div class="panel-title">Общие</div>
-        ${switchRow('autostart', s.autostart, 'Автозапуск', 'При входе в Windows — сразу подключить VPN')}
-        ${switchRow('closeToTray', s.closeToTray, 'Сворачивать в трей', 'Крестик скрывает окно')}
-        ${switchRow('autoReconnect', s.autoReconnect, 'Автопереподключение', 'При обрыве связи')}
-        ${switchRow('killSwitch', s.killSwitch, 'Kill switch', 'Блокировать интернет без VPN')}
-        ${switchRow('dnsLeakProtection', s.dnsLeakProtection, 'Защита от DNS-утечек', 'Блокировать внешний DNS :53')}
-        ${switchRow('autoUpdateSubscriptions', s.autoUpdateSubscriptions, 'Автообновление подписок')}
-        <label class="field">Интервал подписок
+        ${switchRow('autostart', s.autostart, 'Автозапуск', 'Запускать VPN вместе с Windows')}
+        ${switchRow('closeToTray', s.closeToTray, 'Сворачивать в трей', 'Крестик скрывает окно, а не закрывает программу')}
+        ${switchRow('autoReconnect', s.autoReconnect, 'Автопереподключение', 'Самим восстановить связь, если VPN оборвался')}
+        ${switchRow('killSwitch', s.killSwitch, 'Блокировка без VPN', 'Без VPN интернет будет недоступен')}
+        ${switchRow('dnsLeakProtection', s.dnsLeakProtection, 'Защита DNS', 'Не отдавать запросы к сайтам мимо VPN')}
+        ${switchRow('autoUpdateSubscriptions', s.autoUpdateSubscriptions, 'Автообновление подписок', 'Периодически обновлять список серверов')}
+        <label class="field">Как часто обновлять подписки
           <select name="subscriptionIntervalMin">
             <option value="60" ${Number(s.subscriptionIntervalMin) === 60 ? 'selected' : ''}>Каждый час</option>
             <option value="180" ${Number(s.subscriptionIntervalMin) === 180 ? 'selected' : ''}>Каждые 3 часа</option>
@@ -744,20 +744,23 @@ function renderSettingsGeneral(s, v) {
             <option value="1440" ${Number(s.subscriptionIntervalMin) === 1440 ? 'selected' : ''}>Раз в сутки</option>
           </select>
         </label>
-        <label class="field">Проверка связи (сек)
+        <label class="field">Проверка связи (секунды)
           <input name="healthIntervalSec" type="number" min="5" max="600" value="${Number(s.healthIntervalSec) || 30}"/>
         </label>
-        <label class="field">Уровень логов
+        <label class="field">Подробность логов
           <select name="logLevel">
-            ${['silent', 'error', 'warning', 'info', 'debug'].map((lvl) =>
-              `<option value="${lvl}" ${s.logLevel === lvl ? 'selected' : ''}>${lvl}</option>`).join('')}
+            <option value="silent" ${s.logLevel === 'silent' ? 'selected' : ''}>Выключены</option>
+            <option value="error" ${s.logLevel === 'error' ? 'selected' : ''}>Только ошибки</option>
+            <option value="warning" ${s.logLevel === 'warning' ? 'selected' : ''}>Предупреждения</option>
+            <option value="info" ${!s.logLevel || s.logLevel === 'info' ? 'selected' : ''}>Обычные</option>
+            <option value="debug" ${s.logLevel === 'debug' ? 'selected' : ''}>Подробные</option>
           </select>
         </label>
         <div class="actions">
           <button class="ghost" type="button" data-action="update">Проверить обновления</button>
         </div>
-        <div class="muted" style="margin-top:10px">Версия ${escapeHtml(v)} · изменения сохраняются сразу</div>
-        <div class="muted" style="margin-top:8px">Горячие ссылки: <code>myvpn://connect</code>, <code>myvpn://import/https://…</code>, <code>myvpn://add/vless://…</code></div>
+        <div class="muted" style="margin-top:10px">Версия ${escapeHtml(v)} · настройки сохраняются сразу</div>
+        <div class="muted" style="margin-top:8px">Можно открывать программу по ссылкам вида myvpn://… (подключение, импорт профиля).</div>
       </div>
     </form>
   `
@@ -771,7 +774,7 @@ function parseAppListText(text) {
 }
 
 function renderAppChips(apps) {
-  if (!apps.length) return '<span class="muted">Список пуст — добавьте .exe</span>'
+  if (!apps.length) return '<span class="muted">Список пуст — добавьте приложение</span>'
   return apps.map((name) => `
     <button type="button" class="app-chip" data-app-remove="${escapeHtml(name)}" title="Убрать">
       <span>${escapeHtml(name)}</span><span class="app-chip-x" aria-hidden="true">×</span>
@@ -861,14 +864,14 @@ function renderAppRoutePanel(s) {
   const apps = parseAppListText(s.appRouteList)
   return `
     <div class="panel">
-      <div class="panel-title">Приложения (split-tunnel)</div>
-      <p class="muted rules-hint">Маршрут по имени процесса (<code>PROCESS-NAME</code>). Нужен <strong>TUN</strong>. Пример: белый список + <code>AyuGram.exe</code> — VPN только для этого приложения, остальной трафик мимо.</p>
-      <p class="muted rules-hint">В режиме приложений DNS → <code>redir-host</code> + системный resolver для DIRECT (иначе Discord/браузер вне списка тормозят на fake-ip/DoT). Sniffer отключается. Kill Switch / DNS leak в белом списке не применяются. После смены списка — дождитесь переподключения.</p>
-      <label class="field">Режим приложений
+      <div class="panel-title">Приложения</div>
+      <p class="muted rules-hint">Можно пускать через VPN только выбранные программы (или наоборот — исключить их). Нужен режим «Весь трафик системы». Пример: белый список с Telegram — в VPN уйдёт только он, браузер и остальное работают как обычно.</p>
+      <p class="muted rules-hint">Пока включён этот режим, блокировка интернета без VPN и защита DNS отключаются сами — иначе сайты вне списка перестанут открываться. После смены списка подождите переподключение.</p>
+      <label class="field">Режим для приложений
         <select name="appRouteMode" id="app-route-mode">
-          <option value="off" ${mode === 'off' ? 'selected' : ''}>Выключено</option>
-          <option value="whitelist" ${mode === 'whitelist' ? 'selected' : ''}>Белый список — VPN только для выбранных</option>
-          <option value="blacklist" ${mode === 'blacklist' ? 'selected' : ''}>Чёрный список — выбранные мимо VPN</option>
+          <option value="off" ${mode === 'off' ? 'selected' : ''}>Выключено — как настроено выше</option>
+          <option value="whitelist" ${mode === 'whitelist' ? 'selected' : ''}>Только выбранные через VPN</option>
+          <option value="blacklist" ${mode === 'blacklist' ? 'selected' : ''}>Выбранные без VPN, остальное через VPN</option>
         </select>
       </label>
       <textarea name="appRouteList" id="app-route-list" class="sr-only" aria-hidden="true">${escapeHtml(s.appRouteList || '')}</textarea>
@@ -879,7 +882,7 @@ function renderAppRoutePanel(s) {
       <div class="app-chip-list" id="app-chip-list">${renderAppChips(apps)}</div>
       <div id="app-picker" class="app-picker hidden">
         <div class="app-picker-head">
-          <input id="app-picker-q" type="search" placeholder="Поиск процесса…" autocomplete="off" />
+          <input id="app-picker-q" type="search" placeholder="Найти программу…" autocomplete="off" />
           <button class="ghost compact" type="button" data-action="close-app-picker">Закрыть</button>
         </div>
         <div id="app-picker-list" class="app-picker-list"><div class="muted">Загрузка…</div></div>
@@ -904,55 +907,55 @@ function renderSettingsRouting(s) {
             <option value="direct" ${s.mode === 'direct' ? 'selected' : ''}>Без VPN</option>
           </select>
         </label>
-        ${switchRow('ipv6', s.ipv6, 'IPv6', 'Разрешить IPv6 в ядре')}
-        ${switchRow('bypassLan', s.bypassLan !== false, 'Обход локальной сети', 'LAN и link-local → DIRECT')}
-        <label class="field">Обход по GEOIP
+        ${switchRow('ipv6', s.ipv6, 'IPv6', 'Разрешить современный формат адресов (обычно можно не включать)')}
+        ${switchRow('bypassLan', s.bypassLan !== false, 'Обход домашней сети', 'Принтеры, роутер и устройства в локальной сети — без VPN')}
+        <label class="field">Сайты своей страны без VPN
           <select name="bypassGeoip">
-            <option value="CN" ${geo === 'CN' || geo === '' ? 'selected' : ''}>Китай (CN)</option>
-            <option value="RU" ${geo === 'RU' ? 'selected' : ''}>Россия (RU)</option>
-            <option value="IR" ${geo === 'IR' ? 'selected' : ''}>Иран (IR)</option>
+            <option value="CN" ${geo === 'CN' || geo === '' ? 'selected' : ''}>Китай</option>
+            <option value="RU" ${geo === 'RU' ? 'selected' : ''}>Россия</option>
+            <option value="IR" ${geo === 'IR' ? 'selected' : ''}>Иран</option>
             <option value="OFF" ${geo === 'OFF' || geo === 'NONE' ? 'selected' : ''}>Выключено</option>
           </select>
         </label>
       </div>
       ${renderAppRoutePanel(s)}
       <div class="panel">
-        <div class="panel-title">Свои правила</div>
-        ${switchRow('routeWhitelist', !!s.routeWhitelist, 'Белый список', 'Только записи из DIRECT/PROXY; остальное — REJECT (GEOIP-обход выключается)')}
-        <p class="muted rules-hint">По одной записи в строке. Поддерживаются домены, IP/CIDR и regexp. Префиксы: <code>domain:</code>, <code>suffix:</code>, <code>keyword:</code>, <code>regexp:</code>, <code>/pattern/</code>, <code>ip:</code>, <code>geoip:</code>, <code>geosite:</code>. Порядок: блок → напрямую → через VPN → ${s.routeWhitelist ? 'остальное REJECT' : 'GEOIP → остальное'}.</p>
-        <label class="field">Блок (REJECT)
-          <textarea name="routeBlock" rows="5" placeholder="ads.example.com&#10;regexp:^tracker\\.&#10;geosite:category-ads-all">${escapeHtml(s.routeBlock || '')}</textarea>
+        <div class="panel-title">Свои правила для сайтов</div>
+        ${switchRow('routeWhitelist', !!s.routeWhitelist, 'Только перечисленные сайты', 'Всё, чего нет в списках ниже, будет заблокировано')}
+        <p class="muted rules-hint">По одному адресу в строке: сайт (example.com), подсеть (192.168.0.0/16) или шаблон. Сначала действует «Блок», потом «Без VPN», потом «Через VPN»${s.routeWhitelist ? ', остальное закрыто' : ', затем правило страны выше'}.</p>
+        <label class="field">Блокировать
+          <textarea name="routeBlock" rows="5" placeholder="ads.example.com&#10;tracker.example.com">${escapeHtml(s.routeBlock || '')}</textarea>
         </label>
-        <label class="field">Напрямую (DIRECT / байпас)
-          <textarea name="routeDirect" rows="5" placeholder="example.com&#10;*.local&#10;10.0.0.0/8&#10;192.168.1.1">${escapeHtml(s.routeDirect || '')}</textarea>
+        <label class="field">Без VPN (напрямую)
+          <textarea name="routeDirect" rows="5" placeholder="example.com&#10;bank.ru&#10;192.168.0.0/16">${escapeHtml(s.routeDirect || '')}</textarea>
         </label>
-        <label class="field">Через VPN (PROXY)
-          <textarea name="routeProxy" rows="5" placeholder="blocked-site.com&#10;domain:exact.example&#10;/^cdn\\..*\\.example\\.com$/">${escapeHtml(s.routeProxy || '')}</textarea>
+        <label class="field">Всегда через VPN
+          <textarea name="routeProxy" rows="5" placeholder="blocked-site.com&#10;another-site.net">${escapeHtml(s.routeProxy || '')}</textarea>
         </label>
       </div>
       <div class="panel">
-        <div class="panel-title">Пинг и URL-тест</div>
-        <label class="field">Протокол пинга
+        <div class="panel-title">Проверка серверов</div>
+        <label class="field">Способ проверки скорости
           <select name="pingMethod">
-            <option value="proxy-http-get" ${ping === 'proxy-http-get' ? 'selected' : ''}>HTTP GET через прокси</option>
-            <option value="proxy-http-head" ${ping === 'proxy-http-head' ? 'selected' : ''}>HTTP HEAD через прокси</option>
-            <option value="tcp" ${ping === 'tcp' ? 'selected' : ''}>TCP (server:port)</option>
-            <option value="http-get" ${ping === 'http-get' ? 'selected' : ''}>HTTP GET (напрямую)</option>
-            <option value="icmp" ${ping === 'icmp' ? 'selected' : ''}>ICMP</option>
+            <option value="proxy-http-get" ${ping === 'proxy-http-get' ? 'selected' : ''}>Через VPN (обычно лучше)</option>
+            <option value="proxy-http-head" ${ping === 'proxy-http-head' ? 'selected' : ''}>Через VPN (быстрый запрос)</option>
+            <option value="tcp" ${ping === 'tcp' ? 'selected' : ''}>Прямое соединение с сервером</option>
+            <option value="http-get" ${ping === 'http-get' ? 'selected' : ''}>Сайт напрямую (без VPN)</option>
+            <option value="icmp" ${ping === 'icmp' ? 'selected' : ''}>Простой пинг</option>
           </select>
         </label>
-        <label class="field">URL-тест
+        <label class="field">Сайт для проверки
           <select name="urlTestPreset">
-            <option value="gstatic" ${preset === 'gstatic' ? 'selected' : ''}>Google (gstatic)</option>
+            <option value="gstatic" ${preset === 'gstatic' ? 'selected' : ''}>Google</option>
             <option value="cloudflare" ${preset === 'cloudflare' ? 'selected' : ''}>Cloudflare</option>
-            <option value="apple" ${preset === 'apple' ? 'selected' : ''}>Apple captive</option>
-            <option value="custom" ${preset === 'custom' ? 'selected' : ''}>Свой URL</option>
+            <option value="apple" ${preset === 'apple' ? 'selected' : ''}>Apple</option>
+            <option value="custom" ${preset === 'custom' ? 'selected' : ''}>Свой адрес</option>
           </select>
         </label>
-        <label class="field">Свой URL
+        <label class="field">Свой адрес для проверки
           <input name="urlTestUrl" value="${escapeHtml(s.urlTestUrl || 'https://www.gstatic.com/generate_204')}" placeholder="https://…"/>
         </label>
-        <label class="field">Интервал AUTO url-test (сек)
+        <label class="field">Как часто автовыбор лучшего сервера (сек)
           <input name="urlTestIntervalSec" type="number" min="30" max="3600" value="${Number(s.urlTestIntervalSec) || 300}"/>
         </label>
       </div>
@@ -966,19 +969,20 @@ function renderSettingsDNS(s) {
       ${settingsBack()}
       <div class="panel">
         <div class="panel-title">DNS</div>
+        <p class="muted rules-hint">DNS — это «телефонная книга» интернета: по имени сайта находится его адрес. Обычно достаточно значений по умолчанию.</p>
         <label class="field">Режим
           <select name="dnsEnhancedMode">
-            <option value="fake-ip" ${s.dnsEnhancedMode !== 'redir-host' ? 'selected' : ''}>Fake-IP</option>
-            <option value="redir-host" ${s.dnsEnhancedMode === 'redir-host' ? 'selected' : ''}>Redir-Host</option>
+            <option value="fake-ip" ${s.dnsEnhancedMode !== 'redir-host' ? 'selected' : ''}>Быстрый (рекомендуется)</option>
+            <option value="redir-host" ${s.dnsEnhancedMode === 'redir-host' ? 'selected' : ''}>Совместимый (если что-то не открывается)</option>
           </select>
         </label>
-        <label class="field">Nameserver
+        <label class="field">Основные DNS-серверы
           <input name="dnsNameservers" value="${escapeHtml(s.dnsNameservers || '8.8.8.8, 1.1.1.1')}" placeholder="8.8.8.8, 1.1.1.1"/>
         </label>
-        <label class="field">Fallback
-          <input name="dnsFallbacks" value="${escapeHtml(s.dnsFallbacks || 'tls://1.1.1.1:853')}" placeholder="tls://1.1.1.1:853"/>
+        <label class="field">Запасные DNS-серверы
+          <input name="dnsFallbacks" value="${escapeHtml(s.dnsFallbacks || 'tls://1.1.1.1:853')}" placeholder="1.1.1.1"/>
         </label>
-        <label class="field">Fake-IP range
+        <label class="field">Служебный диапазон адресов
           <input name="dnsFakeIpRange" value="${escapeHtml(s.dnsFakeIpRange || '198.18.0.1/16')}"/>
         </label>
       </div>
@@ -987,23 +991,25 @@ function renderSettingsDNS(s) {
 }
 
 function renderSettingsInbound(s) {
+  const stack = s.tunStack || 'system'
   return `
     <form id="settings-form" class="settings" data-section="inbound">
       ${settingsBack()}
       <div class="panel">
-        <div class="panel-title">Входящие</div>
-        <label class="field">Mixed port
+        <div class="panel-title">Подключение</div>
+        <label class="field">Локальный порт
           <input name="mixedPort" type="number" min="1024" max="65535" value="${Number(s.mixedPort) || 7890}"/>
         </label>
-        ${switchRow('allowLan', s.allowLan, 'Разрешить LAN', 'Доступ к прокси из локальной сети')}
-        ${switchRow('tun', s.tun, 'TUN-режим', 'Перехват всего трафика системы')}
-        <label class="field">TUN stack
+        ${switchRow('allowLan', s.allowLan, 'Доступ из домашней сети', 'Другие устройства в Wi‑Fi смогут использовать этот VPN')}
+        ${switchRow('tun', s.tun, 'Весь трафик системы', 'Через VPN идут все программы, а не только браузер')}
+        <label class="field">Способ перехвата трафика
           <select name="tunStack">
-            ${['system', 'gvisor', 'mixed'].map((st) =>
-              `<option value="${st}" ${(s.tunStack || 'system') === st ? 'selected' : ''}>${st}</option>`).join('')}
+            <option value="system" ${stack === 'system' ? 'selected' : ''}>Системный (обычно лучше)</option>
+            <option value="gvisor" ${stack === 'gvisor' ? 'selected' : ''}>Изолированный</option>
+            <option value="mixed" ${stack === 'mixed' ? 'selected' : ''}>Смешанный</option>
           </select>
         </label>
-        ${switchRow('useSystemProxy', s.useSystemProxy, 'Системный прокси', 'Если TUN выключен')}
+        ${switchRow('useSystemProxy', s.useSystemProxy, 'Системный прокси', 'Если «весь трафик» выключен — настроить прокси Windows')}
       </div>
     </form>
   `
@@ -1014,11 +1020,11 @@ function renderSettingsTricks(s) {
     <form id="settings-form" class="settings" data-section="tricks">
       ${settingsBack()}
       <div class="panel">
-        <div class="panel-title">Обход DPI</div>
-        <p class="settings-note">Аналог «трюков TLS» для mihomo: sniffer и параллельные TCP. Фрагментация TLS (sing-box) здесь недоступна.</p>
-        ${switchRow('sniffer', s.sniffer !== false, 'Sniffer', 'Определять домен по TLS/HTTP')}
-        ${switchRow('tcpConcurrent', s.tcpConcurrent !== false, 'TCP concurrent', 'Параллельные соединения')}
-        ${switchRow('unifiedDelay', s.unifiedDelay !== false, 'Unified delay', 'Точнее измерять задержку узлов')}
+        <div class="panel-title">Ускорение и обход</div>
+        <p class="settings-note">Дополнительные настройки соединения. В большинстве случаев достаточно оставить включёнными.</p>
+        ${switchRow('sniffer', s.sniffer !== false, 'Умное определение сайтов', 'Лучше понимать, куда идёт трафик')}
+        ${switchRow('tcpConcurrent', s.tcpConcurrent !== false, 'Параллельные соединения', 'Быстрее открывать сайты при задержках')}
+        ${switchRow('unifiedDelay', s.unifiedDelay !== false, 'Точный замер пинга', 'Аккуратнее показывать задержку серверов')}
       </div>
     </form>
   `
@@ -1032,19 +1038,19 @@ function renderSettingsWARP(s) {
       ${settingsBack()}
       <div class="panel">
         <div class="panel-title">WARP</div>
-        <p class="settings-note">Дополнительная защита поверх VPN: трафик выходит через Cloudflare WARP. Не отдельный сервер в списке.</p>
-        ${switchRow('warpEnabled', s.warpEnabled, 'Включить WARP', 'Защита при подключении VPN')}
-        <button class="ghost" type="button" data-action="generate-warp" style="width:100%;margin:4px 0 12px">Сгенерировать конфигурацию WARP${hasKey ? ' ✓' : ''}</button>
-        <label class="field">Режим маршрутизации WARP
+        <p class="settings-note">Дополнительная защита от Cloudflare поверх вашего VPN. Это не отдельный сервер в списке — включается вместе с подключением.</p>
+        ${switchRow('warpEnabled', s.warpEnabled, 'Включить WARP', 'Добавить защиту Cloudflare при работе VPN')}
+        <button class="ghost" type="button" data-action="generate-warp" style="width:100%;margin:4px 0 12px">${hasKey ? 'Конфигурация WARP готова ✓' : 'Получить конфигурацию WARP'}</button>
+        <label class="field">Как сочетать с VPN
           <select name="warpMode">
-            <option value="via-proxy" ${mode === 'via-proxy' ? 'selected' : ''}>Направлять WARP через прокси</option>
-            <option value="proxy-via-warp" ${mode === 'proxy-via-warp' ? 'selected' : ''}>Направлять прокси через WARP</option>
+            <option value="via-proxy" ${mode === 'via-proxy' ? 'selected' : ''}>Сначала VPN, затем WARP</option>
+            <option value="proxy-via-warp" ${mode === 'proxy-via-warp' ? 'selected' : ''}>Сначала WARP, затем VPN</option>
           </select>
         </label>
-        <label class="field">Лицензионный ключ
-          <input name="warpLicenseKey" value="${escapeHtml(s.warpLicenseKey || '')}" placeholder="Не задано" autocomplete="off"/>
+        <label class="field">Лицензионный ключ (необязательно)
+          <input name="warpLicenseKey" value="${escapeHtml(s.warpLicenseKey || '')}" placeholder="Если есть — вставьте сюда" autocomplete="off"/>
         </label>
-        <label class="field">Чистый IP
+        <label class="field">Предпочтительный адрес
           <input name="warpCleanIp" value="${escapeHtml(s.warpCleanIp || 'auto')}" placeholder="auto"/>
         </label>
         <label class="field">Порт
@@ -1063,17 +1069,17 @@ function renderSettingsWARP(s) {
           <input name="warpNoiseDelay" value="${escapeHtml(s.warpNoiseDelay || '10-30')}"/>
         </label>
         <details class="warp-advanced">
-          <summary>Расширенные ключи</summary>
-          <label class="field">Private key
-            <input name="warpPrivateKey" value="${escapeHtml(s.warpPrivateKey || '')}" placeholder="заполняется генерацией" autocomplete="off"/>
+          <summary>Расширенные параметры</summary>
+          <label class="field">Закрытый ключ
+            <input name="warpPrivateKey" value="${escapeHtml(s.warpPrivateKey || '')}" placeholder="заполняется автоматически" autocomplete="off"/>
           </label>
-          <label class="field">Local address
+          <label class="field">Локальный адрес
             <input name="warpLocalAddress" value="${escapeHtml(s.warpLocalAddress || '172.16.0.2/32')}"/>
           </label>
-          <label class="field">Endpoint
+          <label class="field">Сервер подключения
             <input name="warpEndpoint" value="${escapeHtml(s.warpEndpoint || 'engage.cloudflareclient.com:2408')}"/>
           </label>
-          <label class="field">Cloudflare public key
+          <label class="field">Открытый ключ Cloudflare
             <input name="warpPublicKey" value="${escapeHtml(s.warpPublicKey || 'bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=')}"/>
           </label>
         </details>
@@ -1178,6 +1184,13 @@ function collectSettingsPatch(section, fd, prev) {
 }
 
 const LOG_LEVELS = ['trace', 'debug', 'info', 'warn', 'error']
+const LOG_LEVEL_LABELS = {
+  trace: 'Все детали',
+  debug: 'Подробные',
+  info: 'Обычные',
+  warn: 'Предупреждения',
+  error: 'Ошибки',
+}
 
 function parseLogLine(line) {
   const raw = String(line || '')
@@ -1293,7 +1306,7 @@ function renderLogs(state) {
   return `
     <div class="panel logs-panel">
       <div class="panel-title">
-        <span>Журнал приложения и ядра</span>
+        <span>Журнал событий</span>
         <button class="ghost compact" type="button" data-action="refresh-logs">Обновить</button>
       </div>
       <div class="logs-filters">
@@ -1305,7 +1318,7 @@ function renderLogs(state) {
           <span>Уровень</span>
           <select id="log-level">
             <option value="all" ${level === 'all' ? 'selected' : ''}>Все</option>
-            ${LOG_LEVELS.map((lvl) => `<option value="${lvl}" ${level === lvl ? 'selected' : ''}>${lvl}</option>`).join('')}
+            ${LOG_LEVELS.map((lvl) => `<option value="${lvl}" ${level === lvl ? 'selected' : ''}>${LOG_LEVEL_LABELS[lvl] || lvl}</option>`).join('')}
           </select>
         </label>
         <label class="logs-filter">
@@ -1533,7 +1546,7 @@ async function boot() {
     rt.EventsOn('node:ping', onNodePingEvent)
     rt.EventsOn('deeplink', (payload) => {
       const ok = !!payload?.ok
-      const msg = payload?.message || (ok ? 'Deep link' : 'Ошибка deep link')
+      const msg = payload?.message || (ok ? 'Ссылка обработана' : 'Не удалось открыть ссылку')
       showToast(msg, ok)
       if (ok && (payload?.kind === 'import' || payload?.kind === 'connect' || payload?.kind === 'disconnect' || payload?.kind === 'toggle')) {
         refresh({ force: true, soft: false }).catch(() => {})
@@ -1838,7 +1851,7 @@ async function boot() {
       }
       if (act === 'add-app-manual') {
         e.preventDefault()
-        const name = window.prompt('Имя процесса (например AyuGram.exe):', '')
+        const name = window.prompt('Имя программы (например Telegram.exe):', '')
         if (name) addAppToRouteList(name)
         return
       }
@@ -2001,7 +2014,7 @@ async function boot() {
         await bridge.SelectNode(node)
         state.publicIP = ''
         if (node === 'AUTO') {
-          showToast('AUTO: выбираю лучший сервер…', true)
+          showToast('Выбираю лучший сервер…', true)
           state.pinging.AUTO = true
         } else {
           showToast('Сервер выбран', true)
