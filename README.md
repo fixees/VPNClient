@@ -1,7 +1,23 @@
+<div align="center">
+
+<img src="winres/icon128.png" alt="Мой VPN" width="128" height="128" />
+
 # Мой VPN Client
 
-Desktop VPN client for Windows 10/11.  
-Product site: [myinternetvpn.com](https://myinternetvpn.com/)
+Desktop VPN client for Windows 10/11
+
+[![CI](https://github.com/fixees/VPNClient/actions/workflows/ci.yml/badge.svg)](https://github.com/fixees/VPNClient/actions/workflows/ci.yml)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4?logo=windows&logoColor=white)](https://myinternetvpn.com/)
+[![Go](https://img.shields.io/badge/Go-1.22%2B-00ADD8?logo=go&logoColor=white)](https://go.dev/)
+[![Wails](https://img.shields.io/badge/UI-Wails-red)](https://wails.io/)
+[![Core](https://img.shields.io/badge/core-mihomo-2f8cff)](https://github.com/MetaCubeX/mihomo)
+[![Release](https://img.shields.io/github/v/release/fixees/VPNClient?include_prereleases&label=release)](https://github.com/fixees/VPNClient/releases/tag/latest-main)
+
+[Website](https://myinternetvpn.com/) · [Releases](https://github.com/fixees/VPNClient/releases) · [Issues](https://github.com/fixees/VPNClient/issues)
+
+</div>
+
+---
 
 The application provides a native Windows UI, subscription and profile management, per-app routing, and automatic updates. The networking core is [mihomo](https://github.com/MetaCubeX/mihomo) (Clash Meta), started as a local process and controlled through its HTTP API.
 
