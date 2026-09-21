@@ -16,6 +16,7 @@ const icons = {
   power: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v9"/><path d="M7.5 6.2a7.5 7.5 0 1 0 9 0"/></svg>`,
   search: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>`,
   trash: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M9 7V5h6v2M8 7l1 12h6l1-12"/></svg>`,
+  copy: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`,
   logs: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3.5h8.2L19 7.2V20.5H7z"/><path d="M15 3.5v4h4"/><path d="M10 11h6M10 14.5h6M10 18h4"/></svg>`,
   shield: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 5 6v5c0 5 3.2 8.4 7 9.8 3.8-1.4 7-4.8 7-9.8V6l-7-3z"/></svg>`,
   lock: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>`,
@@ -44,6 +45,7 @@ const mock = {
   async SyncAllSubscriptions() { return 0 },
   async SetActiveProfile() { return null },
   async RemoveProfile() { return null },
+  async CopySubscriptionURL() { return null },
   async CheckForUpdate() { return { available: false } },
   async DownloadUpdate() { return '' },
   async ApplyUpdate() { return null },
@@ -507,6 +509,7 @@ function renderProfiles(state) {
           <span>${count} серверов · ${kind}${p.note ? ' · ' + escapeHtml(p.note) : ''}</span>
         </button>
         <div class="row-actions">
+          ${p.subscriptionURL ? `<button class="icon-ghost" type="button" data-copy-url="${escapeHtml(p.name)}" title="Копировать ссылку">${icons.copy}</button>` : ''}
           ${p.subscriptionURL ? `<button class="icon-ghost" type="button" data-sync="${escapeHtml(p.name)}" title="Обновить">${icons.refresh}</button>` : ''}
           <button class="icon-ghost danger" type="button" data-remove="${escapeHtml(p.name)}" title="Удалить">${icons.trash}</button>
         </div>
@@ -1877,9 +1880,19 @@ async function boot() {
     const profile = e.target.closest('[data-profile]')?.getAttribute('data-profile')
     const syncOne = e.target.closest('[data-sync]')?.getAttribute('data-sync')
     const remove = e.target.closest('[data-remove]')?.getAttribute('data-remove')
+    const copyUrl = e.target.closest('[data-copy-url]')?.getAttribute('data-copy-url')
     const node = e.target.closest('[data-node]')?.getAttribute('data-node')
 
     try {
+      if (copyUrl) {
+        try {
+          await bridge.CopySubscriptionURL(copyUrl)
+          showToast('Ссылка скопирована в буфер обмена', true)
+        } catch (err) {
+          showToast(friendlyError(err), false)
+        }
+        return
+      }
       if (action === 'toggle') {
         if (!state.status.activeProfile) {
           showToast('Сначала добавьте профиль', false)

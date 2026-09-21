@@ -801,6 +801,22 @@ func (a *App) GetSubscriptionInfo(name string) (map[string]any, error) {
 	}, nil
 }
 
+// CopySubscriptionURL copies the subscription URL of a profile to the clipboard.
+func (a *App) CopySubscriptionURL(name string) error {
+	p, err := a.store.Get(name)
+	if err != nil {
+		return err
+	}
+	url := strings.TrimSpace(p.SubscriptionURL)
+	if url == "" {
+		return fmt.Errorf("профиль %q не имеет ссылки на подписку", name)
+	}
+	if a.ctx == nil {
+		return fmt.Errorf("app context not available")
+	}
+	return runtime.ClipboardSetText(a.ctx, url)
+}
+
 func (a *App) RemoveProfile(name string) error {
 	if err := a.store.Remove(name); err != nil {
 		return err

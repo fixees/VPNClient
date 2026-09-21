@@ -33,6 +33,7 @@ The application provides a native Windows UI, subscription and profile managemen
 
 - Single executable distribution (core and geo databases embedded)
 - Subscription import (HTTP/HTTPS), share links, and Clash-compatible configs
+- Copy subscription URLs to clipboard for easy sharing
 - Rule / global / direct modes
 - TUN mode and optional system proxy
 - Per-application split routing
