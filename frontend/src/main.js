@@ -6,6 +6,7 @@ const icons = {
   home: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11.2 12 4l8 7.2"/><path d="M6.5 10.2V20h11V10.2"/></svg>`,
   profiles: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5 7h14M5 12h14M5 17h14"/></svg>`,
   nodes: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6.1 6.1l1.6 1.6M16.3 16.3l1.6 1.6M17.9 6.1l-1.6 1.6M7.7 16.3l-1.6 1.6"/></svg>`,
+  connections: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 13.3l7.6 4.4M8.2 10.7l7.6-4.4"/></svg>`,
   settings: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 3.2v1.8M12 19v1.8M20.8 12h-1.8M5 12H3.2M18.2 5.8l-1.3 1.3M7.1 16.9l-1.3 1.3M18.2 18.2l-1.3-1.3M7.1 7.1 5.8 5.8"/></svg>`,
   plus: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg>`,
   refresh: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a9 9 0 1 1-2.6-6.3"/><path d="M21 3v6h-6"/></svg>`,
@@ -21,6 +22,7 @@ const icons = {
   lock: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>`,
   auto: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5v3M12 17.5v3M3.5 12h3M17.5 12h3"/><circle cx="12" cy="12" r="3.2"/><path d="M7.2 7.2l1.5 1.5M15.3 15.3l1.5 1.5M16.8 7.2l-1.5 1.5M8.7 15.3l-1.5 1.5"/></svg>`,
   cloudflare: `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.5 17.6H6.2c-2.1 0-3.8-1.7-3.8-3.8 0-1.8 1.3-3.4 3.1-3.7.6-2.5 2.8-4.3 5.4-4.3 2.1 0 4 1.2 4.9 3.1.5-.2 1-.3 1.6-.3 2.3 0 4.1 1.8 4.1 4.1 0 2.3-1.8 4.1-4.1 4.1h-.9z"/><path d="M8.1 14.2h9.3c.9 0 1.7-.7 1.7-1.6 0-.8-.6-1.5-1.4-1.6l-.7-.1-.3-.6c-.6-1.4-2-2.3-3.5-2.3-1.7 0-3.2 1.1-3.7 2.7l-.2.6-.6.1c-1.1.1-1.9 1-1.9 2.1 0 .9.7 1.7 1.7 1.7h-.4z" opacity=".92"/></svg>`,
+  close: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>`,
 }
 
 const mock = {
@@ -52,6 +54,9 @@ const mock = {
   async GenerateWARPConfig() {
     return { privateKey: 'dev', localAddress: '172.16.0.2/32' }
   },
+  async ListConnections() { return [] },
+  async CloseConnection() { return null },
+  async CloseAllConnections() { return null },
 }
 
 async function api() {
@@ -376,6 +381,7 @@ const titles = {
   home: 'Подключение',
   profiles: 'Профили',
   nodes: 'Серверы',
+  connections: 'Соединения',
   logs: 'Логи',
   settings: 'Настройки',
 }
@@ -392,6 +398,7 @@ function shellHTML() {
           <button class="nav-btn active" data-view="home" type="button">${icons.home}<span>Главная</span></button>
           <button class="nav-btn" data-view="profiles" type="button">${icons.profiles}<span>Профили</span></button>
           <button class="nav-btn" data-view="nodes" type="button">${icons.nodes}<span>Серверы</span></button>
+          <button class="nav-btn" data-view="connections" type="button">${icons.connections}<span>Соединения</span></button>
           <button class="nav-btn" data-view="logs" type="button">${icons.logs}<span>Логи</span></button>
           <button class="nav-btn" data-view="settings" type="button">${icons.settings}<span>Настройки</span></button>
         </nav>
@@ -430,6 +437,9 @@ function topActionsFor(view) {
   }
   if (view === 'nodes') {
     return `<button class="ghost compact" type="button" data-action="test-all">Проверить пинг</button>`
+  }
+  if (view === 'connections') {
+    return `<button class="ghost compact" type="button" data-action="close-all-connections">Закрыть все</button>`
   }
   if (view === 'logs') {
     return `<button class="ghost compact" type="button" data-action="refresh-logs">Обновить</button>`
@@ -1299,6 +1309,104 @@ function filteredLogs(state) {
   return filtered
 }
 
+function renderConnections(state) {
+  const { status, connections, connQuery } = state
+  const connected = status.state === 'connected'
+  if (!connected) {
+    return `
+      <div class="panel connections-panel">
+        <div class="empty">
+          <p>Список соединений доступен после подключения</p>
+          <button class="primary" type="button" data-action="go-home">На главную</button>
+        </div>
+      </div>`
+  }
+
+  const list = connections || []
+  const q = String(connQuery || '').trim().toLowerCase()
+  const filtered = list.filter((c) => {
+    if (!q) return true
+    const host = String(c.host || '').toLowerCase()
+    const rule = String(c.rule || '').toLowerCase()
+    const chains = String(c.chains || '').toLowerCase()
+    const process = String(c.process || '').toLowerCase()
+    return host.includes(q) || rule.includes(q) || chains.includes(q) || process.includes(q)
+  })
+
+  const totalUp = list.reduce((sum, c) => sum + Number(c.upload || 0), 0)
+  const totalDown = list.reduce((sum, c) => sum + Number(c.download || 0), 0)
+
+  function relativeTime(start) {
+    if (!start) return '—'
+    const ms = Date.now() - Date.parse(start)
+    if (ms < 0) return 'сейчас'
+    const s = Math.floor(ms / 1000)
+    if (s < 60) return s + 'с'
+    const m = Math.floor(s / 60)
+    if (m < 60) return m + 'м'
+    const h = Math.floor(m / 60)
+    return h + 'ч'
+  }
+
+  const rows = filtered.map((c) => {
+    const host = c.host || c.destIP || '—'
+    const rule = c.rule || '—'
+    const chains = c.chains || '—'
+    const up = fmtBytes(c.upload || 0)
+    const down = fmtBytes(c.download || 0)
+    const network = c.network || ''
+    const type = c.type || ''
+    const netType = [network, type].filter(Boolean).join(' / ') || '—'
+    const elapsed = relativeTime(c.start)
+    return `
+      <div class="conn-item">
+        <div class="conn-main">
+          <div class="conn-host">${escapeHtml(host)}</div>
+          <div class="conn-meta">
+            <span>${escapeHtml(netType)}</span>
+            <span>·</span>
+            <span>Правило: ${escapeHtml(rule)}</span>
+            ${chains !== '—' ? `<span>·</span><span>Цепь: ${escapeHtml(chains)}</span>` : ''}
+          </div>
+        </div>
+        <div class="conn-stats">
+          <div class="conn-traffic">
+            <span class="dir up">↑ ${up}</span>
+            <span class="dir down">↓ ${down}</span>
+            <span class="conn-time">${elapsed}</span>
+          </div>
+          <button class="icon-ghost danger" type="button" data-close-conn="${escapeHtml(c.id)}" title="Закрыть">${icons.close}</button>
+        </div>
+      </div>`
+  }).join('')
+
+  return `
+    <div class="panel connections-panel">
+      <div class="connections-head">
+        <div class="connections-summary">
+          <div class="summary-stat">
+            <span class="summary-label">Соединений</span>
+            <strong>${list.length}</strong>
+          </div>
+          <div class="summary-stat">
+            <span class="summary-label">Всего загружено</span>
+            <strong>${fmtBytes(totalDown)}</strong>
+          </div>
+          <div class="summary-stat">
+            <span class="summary-label">Всего отправлено</span>
+            <strong>${fmtBytes(totalUp)}</strong>
+          </div>
+        </div>
+        <div class="search-box">
+          ${icons.search}
+          <input id="conn-search" type="search" placeholder="Поиск по хосту, правилу, цепи…" value="${escapeHtml(connQuery || '')}" autocomplete="off"/>
+        </div>
+      </div>
+      <div class="connections-list" id="connections-list">${rows || '<div class="empty">Нет активных соединений</div>'}</div>
+    </div>
+  `
+}
+
 function renderLogs(state) {
   const level = state.logLevel || 'all'
   const time = state.logTime || 'all'
@@ -1342,6 +1450,7 @@ function renderView(state) {
   switch (state.view) {
     case 'profiles': return renderProfiles(state)
     case 'nodes': return renderNodes(state)
+    case 'connections': return renderConnections(state)
     case 'logs': return renderLogs(state)
     case 'settings': return renderSettings(state)
     default: return renderHome(state)
@@ -1368,6 +1477,8 @@ async function boot() {
     settings: {},
     nodes: [],
     currentNode: '',
+    connections: [],
+    connQuery: '',
     logs: '',
     logQuery: '',
     logLevel: 'all',
@@ -1624,6 +1735,10 @@ async function boot() {
       if (state.status.publicIP) state.publicIP = state.status.publicIP
       if (state.view === 'logs') {
         await loadLogs()
+      } else if (state.view === 'connections' && state.status.state === 'connected') {
+        try {
+          state.connections = (await bridge.ListConnections()) || []
+        } catch (_) {}
       } else if (state.view === 'nodes' && state.status.state === 'connected') {
         try {
           const nodes = await bridge.ListNodes()
@@ -1677,6 +1792,11 @@ async function boot() {
     state.nodes = nodes
     state.currentNode = currentNode
     if (state.view === 'logs') await loadLogs()
+    if (state.view === 'connections' && status.state === 'connected') {
+      try {
+        state.connections = (await bridge.ListConnections()) || []
+      } catch (_) {}
+    }
     if (state.view === 'home') refreshPublicIP({ force: true }).catch(() => {})
   }
 
@@ -1747,6 +1867,17 @@ async function boot() {
         const tmp = document.createElement('div')
         tmp.innerHTML = renderNodes(state)
         const next = tmp.querySelector('.nodes-list')
+        if (next) list.replaceWith(next)
+      }
+      return
+    }
+    if (e.target.id === 'conn-search') {
+      state.connQuery = e.target.value
+      const list = content.querySelector('.connections-list')
+      if (list) {
+        const tmp = document.createElement('div')
+        tmp.innerHTML = renderConnections(state)
+        const next = tmp.querySelector('.connections-list')
         if (next) list.replaceWith(next)
       }
       return
@@ -1878,8 +2009,22 @@ async function boot() {
     const syncOne = e.target.closest('[data-sync]')?.getAttribute('data-sync')
     const remove = e.target.closest('[data-remove]')?.getAttribute('data-remove')
     const node = e.target.closest('[data-node]')?.getAttribute('data-node')
+    const closeConn = e.target.closest('[data-close-conn]')?.getAttribute('data-close-conn')
 
     try {
+      if (closeConn) {
+        await bridge.CloseConnection(closeConn)
+        showToast('Соединение закрыто', true)
+        await refresh({ force: true })
+        return
+      }
+      if (action === 'close-all-connections') {
+        if (!confirm('Закрыть все активные соединения?')) return
+        await bridge.CloseAllConnections()
+        showToast('Все соединения закрыты', true)
+        await refresh({ force: true })
+        return
+      }
       if (action === 'toggle') {
         if (!state.status.activeProfile) {
           showToast('Сначала добавьте профиль', false)

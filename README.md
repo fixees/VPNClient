@@ -40,6 +40,7 @@ The application provides a native Windows UI, subscription and profile managemen
 - Kill switch and DNS leak protection
 - Auto-reconnect, tray integration, single-instance launch
 - Signed in-app updates from GitHub Releases
+- Active connections panel with live mihomo flows and close actions
 
 ## Repository layout
 
