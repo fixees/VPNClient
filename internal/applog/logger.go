@@ -54,7 +54,7 @@ func (l *Logger) write(level, format string, args ...any) {
 	msg = Redact(msg)
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.std.Printf("%s [%s] %s", time.Now().Format(time.RFC3339), level, msg)
+	l.std.Printf("%s [%s] %s", time.Now().Format("01-02 15:04:05"), level, msg)
 }
 
 // Tail reads the last maxLines from the log file without loading huge heads fully into memory beyond a capped window.

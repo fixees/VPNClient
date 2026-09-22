@@ -5,8 +5,8 @@ const root = document.querySelector('#app')
 const icons = {
   home: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11.2 12 4l8 7.2"/><path d="M6.5 10.2V20h11V10.2"/></svg>`,
   profiles: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5 7h14M5 12h14M5 17h14"/></svg>`,
-  nodes: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6.1 6.1l1.6 1.6M16.3 16.3l1.6 1.6M17.9 6.1l-1.6 1.6M7.7 16.3l-1.6 1.6"/></svg>`,
-  settings: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 3.2v1.8M12 19v1.8M20.8 12h-1.8M5 12H3.2M18.2 5.8l-1.3 1.3M7.1 16.9l-1.3 1.3M18.2 18.2l-1.3-1.3M7.1 7.1 5.8 5.8"/></svg>`,
+  nodes: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="5" rx="1.2"/><rect x="4" y="10.5" width="16" height="5" rx="1.2"/><rect x="4" y="17" width="16" height="5" rx="1.2"/><circle cx="7.2" cy="6.5" r="0.7" fill="currentColor" stroke="none"/><circle cx="7.2" cy="13" r="0.7" fill="currentColor" stroke="none"/><circle cx="7.2" cy="19.5" r="0.7" fill="currentColor" stroke="none"/></svg>`,
+  settings: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8.4a3.6 3.6 0 1 0 0 7.2 3.6 3.6 0 0 0 0-7.2z"/><path d="M19.4 13.1a7.8 7.8 0 0 0 .05-1.1 7.8 7.8 0 0 0-.05-1.1l2.05-1.55-1.9-3.3-2.45.7a7.5 7.5 0 0 0-1.9-1.1L14.7 3h-5.4l-.55 2.65a7.5 7.5 0 0 0-1.9 1.1l-2.45-.7-1.9 3.3L4.6 10.9a7.8 7.8 0 0 0 0 2.2L2.55 14.65l1.9 3.3 2.45-.7a7.5 7.5 0 0 0 1.9 1.1L9.3 21h5.4l.55-2.65a7.5 7.5 0 0 0 1.9-1.1l2.45.7 1.9-3.3-2.05-1.55z"/></svg>`,
   plus: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg>`,
   refresh: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a9 9 0 1 1-2.6-6.3"/><path d="M21 3v6h-6"/></svg>`,
   history: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 7v5l3 2"/></svg>`,
@@ -21,6 +21,10 @@ const icons = {
   lock: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>`,
   auto: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5v3M12 17.5v3M3.5 12h3M17.5 12h3"/><circle cx="12" cy="12" r="3.2"/><path d="M7.2 7.2l1.5 1.5M15.3 15.3l1.5 1.5M16.8 7.2l-1.5 1.5M8.7 15.3l-1.5 1.5"/></svg>`,
   cloudflare: `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.5 17.6H6.2c-2.1 0-3.8-1.7-3.8-3.8 0-1.8 1.3-3.4 3.1-3.7.6-2.5 2.8-4.3 5.4-4.3 2.1 0 4 1.2 4.9 3.1.5-.2 1-.3 1.6-.3 2.3 0 4.1 1.8 4.1 4.1 0 2.3-1.8 4.1-4.1 4.1h-.9z"/><path d="M8.1 14.2h9.3c.9 0 1.7-.7 1.7-1.6 0-.8-.6-1.5-1.4-1.6l-.7-.1-.3-.6c-.6-1.4-2-2.3-3.5-2.3-1.7 0-3.2 1.1-3.7 2.7l-.2.6-.6.1c-1.1.1-1.9 1-1.9 2.1 0 .9.7 1.7 1.7 1.7h-.4z" opacity=".92"/></svg>`,
+  folder: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 7.5h5l1.6 1.8H20.5v9.2a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5V7.5z"/><path d="M3.5 7.5V6a1.5 1.5 0 0 1 1.5-1.5h3.2L10 6"/></svg>`,
+  download: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"/><path d="m7.5 11.5 4.5 4.5 4.5-4.5"/><path d="M5 19.5h14"/></svg>`,
+  pause: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M8 5.5v13M16 5.5v13"/></svg>`,
+  play: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5.5v13l11-6.5z"/></svg>`,
 }
 
 const mock = {
@@ -49,6 +53,8 @@ const mock = {
   async ApplyUpdate() { return null },
   async QuitApp() { return null },
   async GetLogsTail() { return '' },
+  async OpenLogsFolder() { return null },
+  async ExportLogs() { return null },
   async GenerateWARPConfig() {
     return { privateKey: 'dev', localAddress: '172.16.0.2/32' }
   },
@@ -347,6 +353,38 @@ function enhanceSelects(scope) {
         `<button type="button" class="cselect-option${i === sel.selectedIndex ? ' active' : ''}" role="option" data-value="${escapeHtml(o.value)}" ${o.disabled ? 'disabled' : ''}>${escapeHtml(o.textContent)}</button>`
       )).join('')
     }
+
+    function placeMenu() {
+      const r = trigger.getBoundingClientRect()
+      const gap = 6
+      const maxH = Math.min(240, Math.max(120, window.innerHeight - 24))
+      if (menu.parentElement !== document.body) {
+        document.body.appendChild(menu)
+      }
+      menu.classList.add('cselect-menu-portal')
+      menu.style.position = 'fixed'
+      menu.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - r.width - 8))}px`
+      menu.style.width = `${r.width}px`
+      menu.style.right = 'auto'
+      menu.style.maxHeight = `${maxH}px`
+      menu.style.zIndex = '5000'
+      menu.style.display = 'grid'
+      menu.style.top = `${r.bottom + gap}px`
+      const mh = Math.min(menu.scrollHeight || maxH, maxH)
+      if (r.bottom + gap + mh > window.innerHeight - 8 && r.top > mh + gap + 8) {
+        menu.style.top = `${Math.max(8, r.top - gap - mh)}px`
+      }
+    }
+
+    function closeMenu() {
+      wrap.classList.remove('open')
+      menu.style.display = 'none'
+      if (menu.parentElement === document.body) {
+        wrap.appendChild(menu)
+      }
+      menu.classList.remove('cselect-menu-portal')
+    }
+
     sync()
     wrap.appendChild(trigger)
     wrap.appendChild(menu)
@@ -355,8 +393,25 @@ function enhanceSelects(scope) {
       e.preventDefault()
       e.stopPropagation()
       const open = !wrap.classList.contains('open')
-      scope.querySelectorAll('.cselect.open').forEach((el) => el.classList.remove('open'))
-      wrap.classList.toggle('open', open)
+      scope.querySelectorAll('.cselect.open').forEach((el) => {
+        el.classList.remove('open')
+        const m = el.querySelector('.cselect-menu')
+        if (m) {
+          m.style.display = 'none'
+          if (m.parentElement === document.body) el.appendChild(m)
+          m.classList.remove('cselect-menu-portal')
+        }
+      })
+      document.querySelectorAll('.cselect-menu-portal').forEach((m) => {
+        m.style.display = 'none'
+        m.classList.remove('cselect-menu-portal')
+      })
+      if (open) {
+        wrap.classList.add('open')
+        placeMenu()
+      } else {
+        closeMenu()
+      }
     })
     menu.addEventListener('click', (e) => {
       const btn = e.target.closest('.cselect-option')
@@ -366,7 +421,7 @@ function enhanceSelects(scope) {
       sel.value = btn.getAttribute('data-value')
       sel.dispatchEvent(new Event('change', { bubbles: true }))
       sel.dispatchEvent(new Event('input', { bubbles: true }))
-      wrap.classList.remove('open')
+      closeMenu()
       sync()
     })
   })
@@ -1213,10 +1268,18 @@ function parseLogLine(line) {
   }
 
   let time = null
-  const iso = trimmed.match(/(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)/)
-  if (iso) {
-    const ms = Date.parse(iso[1].replace(' ', 'T'))
+  const shortTs = trimmed.match(/^(\d{2})-(\d{2})[ T](\d{2}:\d{2}:\d{2})(?:\.\d+)?/)
+  if (shortTs) {
+    const year = new Date().getFullYear()
+    const ms = Date.parse(`${year}-${shortTs[1]}-${shortTs[2]}T${shortTs[3]}`)
     if (!Number.isNaN(ms)) time = ms
+  }
+  if (time == null) {
+    const iso = trimmed.match(/(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)/)
+    if (iso) {
+      const ms = Date.parse(iso[1].replace(' ', 'T'))
+      if (!Number.isNaN(ms)) time = ms
+    }
   }
   if (time == null) {
     const quoted = trimmed.match(/time=["']([^"']+)["']/i)
@@ -1227,6 +1290,14 @@ function parseLogLine(line) {
   }
 
   return { raw, level, time, isHeader: false, empty: false }
+}
+
+/** Compact long ISO timestamps for display (keeps filtering on original parse). */
+function shortenLogTimestamps(text) {
+  return String(text || '').replace(
+    /(\d{4})-(\d{2})-(\d{2})[T ](\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?/g,
+    (_, y, m, d, hms) => `${m}-${d} ${hms}`
+  )
 }
 
 function normalizeLogLevel(v) {
@@ -1296,18 +1367,24 @@ function filteredLogs(state) {
     time: state.logTime,
   })
   if (!filtered.trim()) return 'Нет записей по выбранным фильтрам'
-  return filtered
+  return shortenLogTimestamps(filtered)
 }
 
 function renderLogs(state) {
   const level = state.logLevel || 'all'
   const time = state.logTime || 'all'
   const query = state.logQuery || ''
+  const paused = !!state.logsPaused
   return `
     <div class="panel logs-panel">
       <div class="panel-title">
-        <span>Журнал событий</span>
-        <button class="ghost compact" type="button" data-action="refresh-logs">Обновить</button>
+        <span>Журнал событий${paused ? ' <span class="logs-paused-tag">пауза</span>' : ''}</span>
+        <div class="logs-title-actions">
+          <button class="ghost compact" type="button" data-action="toggle-logs-pause" title="${paused ? 'Продолжить обновление' : 'Остановить для копирования'}">${paused ? icons.play : icons.pause}<span>${paused ? 'Продолжить' : 'Стоп'}</span></button>
+          <button class="ghost compact" type="button" data-action="open-logs-folder" title="Открыть папку логов">${icons.folder}<span>Папка</span></button>
+          <button class="ghost compact" type="button" data-action="export-logs" title="Скачать с учётом фильтров">${icons.download}<span>Скачать</span></button>
+          <button class="ghost compact" type="button" data-action="refresh-logs" ${paused ? 'disabled' : ''}>Обновить</button>
+        </div>
       </div>
       <div class="logs-filters">
         <label class="logs-filter logs-filter-query">
@@ -1333,7 +1410,7 @@ function renderLogs(state) {
           </select>
         </label>
       </div>
-      <pre class="logs-view" id="logs-view">${escapeHtml(filteredLogs(state))}</pre>
+      <pre class="logs-view ${paused ? 'is-paused' : ''}" id="logs-view">${escapeHtml(filteredLogs(state))}</pre>
     </div>
   `
 }
@@ -1372,6 +1449,7 @@ async function boot() {
     logQuery: '',
     logLevel: 'all',
     logTime: 'all',
+    logsPaused: false,
     message: '',
     messageOk: false,
     busy: false,
@@ -1535,7 +1613,11 @@ async function boot() {
       state.delayMap[name] = delay
       state.nodes = (state.nodes || []).map((n) => (n.name === name ? { ...n, delay } : n))
       patchNodeRow(name)
-      paintLive()
+      // Avoid paintLive() here — full live refresh mid-ping flickers badges/spinners.
+      const lat = document.getElementById('latency-value')
+      if (lat && state.currentNode === name && delay > 0) {
+        lat.textContent = `${delay} мс`
+      }
     }
   }
 
@@ -1544,6 +1626,27 @@ async function boot() {
     if (!rt?.EventsOn || bindPingEvents.done) return
     bindPingEvents.done = true
     rt.EventsOn('node:ping', onNodePingEvent)
+    rt.EventsOn('nodes:probe', (payload) => {
+      if (payload?.phase === 'start') {
+        state.pinging = {}
+        for (const n of state.nodes || []) {
+          if (n?.name) state.pinging[n.name] = true
+        }
+        showToast('Первая проверка серверов…', true)
+        if (state.view === 'nodes') paintContent({ force: true })
+        return
+      }
+      if (payload?.phase === 'done') {
+        state.pinging = {}
+        if (payload.error) {
+          showToast('Проверка серверов: ' + friendlyError(payload.error), false)
+        } else {
+          const ok = Object.values(state.delayMap || {}).filter((d) => Number(d) > 0).length
+          showToast(ok ? `Серверы проверены: ${ok} доступны` : 'Проверка серверов завершена', true)
+        }
+        if (state.view === 'nodes') paintContent({ force: true })
+      }
+    })
     rt.EventsOn('deeplink', (payload) => {
       const ok = !!payload?.ok
       const msg = payload?.message || (ok ? 'Ссылка обработана' : 'Не удалось открыть ссылку')
@@ -1588,7 +1691,7 @@ async function boot() {
   function paintLive() {
     paintChrome()
     patchHomeLive()
-    if (state.view === 'logs') {
+    if (state.view === 'logs' && !state.logsPaused) {
       const el = document.getElementById('logs-view')
       if (el && state.logs) {
         const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40
@@ -1623,7 +1726,7 @@ async function boot() {
       state.status = await bridge.GetStatus()
       if (state.status.publicIP) state.publicIP = state.status.publicIP
       if (state.view === 'logs') {
-        await loadLogs()
+        if (!state.logsPaused) await loadLogs()
       } else if (state.view === 'nodes' && state.status.state === 'connected') {
         try {
           const nodes = await bridge.ListNodes()
@@ -1786,8 +1889,12 @@ async function boot() {
   })
 
   root.addEventListener('click', async (e) => {
-    if (!e.target.closest('.cselect')) {
+    if (!e.target.closest('.cselect') && !e.target.closest('.cselect-menu-portal')) {
       root.querySelectorAll('.cselect.open').forEach((el) => el.classList.remove('open'))
+      document.querySelectorAll('.cselect-menu-portal').forEach((m) => {
+        m.style.display = 'none'
+        m.classList.remove('cselect-menu-portal')
+      })
     }
     if (!e.target.closest('.quota-profile-wrap')) {
       if (state.quotaMenuOpen) {
@@ -1889,17 +1996,16 @@ async function boot() {
         const connecting = state.status.state !== 'connected'
         state.busy = true
         paintLive()
-        if (connecting) {
-          showToast('Подключаю, обновляю подписки и проверяю серверы…', true)
-          state.pinging = {}
-        }
         await bridge.ToggleConnect()
         state.busy = false
-        state.pinging = {}
         state.publicIP = ''
         await refresh({ force: true })
         refreshPublicIP({ force: true }).catch(() => {})
         showToast(state.status.state === 'connected' ? 'Подключено' : 'Отключено', true)
+        // First-ever connect may start a background probe — keep listening for node:ping.
+        if (connecting && state.status.state === 'connected' && state.view === 'nodes') {
+          paintContent({ force: true })
+        }
         return
       }
       if (action === 'generate-warp') {
@@ -1927,8 +2033,30 @@ async function boot() {
       }
       if (action === 'quit') { await bridge.QuitApp?.(); return }
       if (action === 'refresh-logs') {
+        if (state.logsPaused) {
+          showToast('Сначала снимите паузу', false)
+          return
+        }
         await loadLogs()
         paintContent({ force: true })
+        return
+      }
+      if (action === 'toggle-logs-pause') {
+        state.logsPaused = !state.logsPaused
+        if (!state.logsPaused) await loadLogs()
+        paintContent({ force: true })
+        showToast(state.logsPaused ? 'Лог на паузе — можно копировать' : 'Обновление лога возобновлено', true)
+        return
+      }
+      if (action === 'open-logs-folder') {
+        await bridge.OpenLogsFolder()
+        showToast('Папка логов открыта', true)
+        return
+      }
+      if (action === 'export-logs') {
+        const text = filteredLogs(state)
+        await bridge.ExportLogs(text)
+        showToast('Лог сохранён', true)
         return
       }
       if (action === 'toggle-quota-menu') {
@@ -1964,14 +2092,22 @@ async function boot() {
       if (action === 'test-all') {
         showToast('Проверяю серверы…', true)
         state.pinging = {}
+        for (const n of state.nodes || []) {
+          if (n?.name) state.pinging[n.name] = true
+        }
         if (state.view === 'nodes') paintContent({ force: true })
         const results = await bridge.TestAllNodes()
         Object.keys(state.delayMap).forEach((k) => delete state.delayMap[k])
         for (const r of results || []) state.delayMap[r.name] = r.delay || 0
+        state.nodes = (state.nodes || []).map((n) => ({
+          ...n,
+          delay: state.delayMap[n.name] || 0,
+        }))
         state.pinging = {}
         const ok = (results || []).filter((r) => r.delay > 0).length
         showToast(`Доступны ${ok} из ${(results || []).length}`, true)
-        await refresh({ force: true })
+        if (state.view === 'nodes') paintContent({ force: true })
+        else await refresh({ force: true })
         return
       }
       if (action === 'update') {

@@ -1089,6 +1089,12 @@ textarea {
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
 }
 .cselect.open .cselect-menu { display: grid; gap: 2px; }
+.cselect-menu-portal {
+  display: grid !important;
+  gap: 2px;
+  position: fixed;
+  margin: 0;
+}
 .cselect-option {
   width: 100%;
   text-align: left;
@@ -1316,6 +1322,39 @@ textarea {
 }
 
 .logs-panel { display: flex; flex-direction: column; min-height: min(62vh, 560px); }
+.logs-title-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  justify-content: flex-end;
+}
+.logs-title-actions .ghost.compact {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.logs-title-actions .ghost.compact svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+.logs-title-actions .ghost.compact:disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+.logs-paused-tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #ffd8a8;
+  background: rgba(255, 160, 60, 0.16);
+  border: 1px solid rgba(255, 160, 60, 0.28);
+  vertical-align: middle;
+}
 .logs-filters {
   display: grid;
   grid-template-columns: minmax(0, 1.6fr) minmax(120px, 0.7fr) minmax(130px, 0.8fr);
@@ -1351,6 +1390,10 @@ textarea {
   overflow: auto;
   max-height: min(52vh, 480px);
   user-select: text;
+}
+.logs-view.is-paused {
+  outline: 1px solid rgba(255, 160, 60, 0.28);
+  background: rgba(20, 14, 6, 0.45);
 }
 
 .empty {
