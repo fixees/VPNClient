@@ -113,7 +113,8 @@ type Settings struct {
 	CloseToTray             bool   `json:"closeToTray"`
 	ProxyGroup              string `json:"proxyGroup"`
 	SelectedNode            string `json:"selectedNode"`
-	PingMethod              string `json:"pingMethod"`     // proxy-http-get | proxy-http-head | tcp | http-get | icmp
+	InitialNodesProbed      bool   `json:"initialNodesProbed"` // one-shot auto-ping after first successful connect
+	PingMethod              string `json:"pingMethod"`         // proxy-http-get | proxy-http-head | tcp | http-get | icmp
 	URLTestPreset           string `json:"urlTestPreset"`  // gstatic | cloudflare | apple | custom
 	URLTestURL              string `json:"urlTestUrl"`     // used when preset=custom
 	URLTestIntervalSec      int    `json:"urlTestIntervalSec"`

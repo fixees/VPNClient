@@ -568,8 +568,7 @@ func (a *App) reloadRunningConfig() error {
 	}
 	_ = a.api.CloseConnections()
 	if a.settings.SelectedNode != "" {
-		group := a.proxyGroup()
-		if err := a.api.SelectProxy(group, a.settings.SelectedNode); err != nil {
+		if err := a.restoreSelectedNode("reload"); err != nil && a.log != nil {
 			a.log.Warn("restore selected node after reload: %v", err)
 		}
 	}
@@ -940,11 +939,8 @@ func (a *App) Connect() error {
 		a.health.Start()
 	}
 	if a.settings.SelectedNode != "" {
-		group := a.proxyGroup()
-		if err := a.api.SelectProxy(group, a.settings.SelectedNode); err != nil {
+		if err := a.restoreSelectedNode("connect"); err != nil && a.log != nil {
 			a.log.Warn("restore selected node: %v", err)
-		} else {
-			_ = a.api.CloseConnections()
 		}
 	}
 	if a.api != nil {
@@ -1113,12 +1109,13 @@ func (a *App) autostartConnect() {
 	if a.manager != nil && a.manager.Running() {
 		return
 	}
-	if _, err := a.ConnectAndProbe(); err != nil {
+	if err := a.Connect(); err != nil {
 		if a.log != nil {
 			a.log.Warn("autostart connect failed: %v", err)
 		}
 		return
 	}
+	a.maybeInitialNodesProbe()
 	if a.log != nil {
 		a.log.Info("autostart connected profile=%s", profile)
 	}
@@ -1224,8 +1221,11 @@ func (a *App) ToggleConnect() error {
 	if a.manager != nil && a.manager.Running() {
 		return a.Disconnect()
 	}
-	_, err := a.ConnectAndProbe()
-	return err
+	if err := a.Connect(); err != nil {
+		return err
+	}
+	a.maybeInitialNodesProbe()
+	return nil
 }
 
 func (a *App) GetTraffic() map[string]any {
@@ -1370,15 +1370,15 @@ func (a *App) SelectNode(name string) error {
 	if name == defaults.AutoGroup {
 		go func() {
 			timeout := defaults.AutoGroupDelayFloorMS
-			if d, err := a.api.TestDelay(defaults.AutoGroup, a.probeURL(), timeout); err != nil {
-				// Fallback: group endpoint tests all members and refreshes url-test state.
-				if _, err2 := a.api.TestGroupDelay(defaults.AutoGroup, a.probeURL(), timeout); err2 != nil {
+			// Prefer /group/.../delay for URLTest; /proxies/AUTO/delay is flaky on some mihomo builds.
+			if _, err := a.api.TestGroupDelay(defaults.AutoGroup, a.probeURL(), timeout); err != nil {
+				if d, err2 := a.api.TestDelay(defaults.AutoGroup, a.probeURL(), timeout); err2 != nil {
 					a.log.Warn("AUTO url-test: %v", err)
 				} else {
-					a.log.Info("AUTO group delay refreshed")
+					a.log.Info("AUTO url-test delay=%dms", d)
 				}
 			} else {
-				a.log.Info("AUTO url-test delay=%dms", d)
+				a.log.Info("AUTO group delay refreshed")
 			}
 		}()
 	}
@@ -1421,22 +1421,17 @@ func (a *App) probeNode(name string) (int, error) {
 			return 0, fmt.Errorf("api client required")
 		}
 		timeout := defaults.AutoGroupDelayFloorMS
-		d, err := a.api.TestDelay(name, a.probeURL(), timeout)
-		if err == nil {
-			return d, nil
-		}
-		// Group delay returns per-node map; use the best alive sample.
-		m, err2 := a.api.TestGroupDelay(name, a.probeURL(), timeout)
-		if err2 != nil {
-			return 0, err
-		}
-		best := 0
-		for _, v := range m {
-			if v > 0 && (best == 0 || v < best) {
-				best = v
+		// Group endpoint is the correct API for url-test strategies.
+		if m, err := a.api.TestGroupDelay(name, a.probeURL(), timeout); err == nil {
+			best := 0
+			for _, v := range m {
+				if v > 0 && (best == 0 || v < best) {
+					best = v
+				}
 			}
+			return best, nil
 		}
-		return best, nil
+		return a.api.TestDelay(name, a.probeURL(), timeout)
 	}
 
 	proxy := profiles.ProxyNode{"name": name}
@@ -1482,21 +1477,73 @@ func (a *App) emitNodePing(name, phase string, delay int, errMsg string) {
 	runtime.EventsEmit(a.ctx, "node:ping", payload)
 }
 
-// ConnectAndProbe syncs subscriptions, connects (if needed), and pings all nodes.
+// ConnectAndProbe connects (if needed) and runs latency tests for all nodes.
+// Used after importing a profile — not on every VPN toggle.
 func (a *App) ConnectAndProbe() ([]NodeDelayResult, error) {
 	if a.manager == nil || !a.manager.Running() {
-		if n, err := a.SyncAllSubscriptions(); err != nil {
-			if a.log != nil {
-				a.log.Warn("subscription sync before connect: %v", err)
-			}
-		} else if n > 0 && a.log != nil {
-			a.log.Info("synced %d subscriptions before connect", n)
-		}
 		if err := a.Connect(); err != nil {
 			return nil, err
 		}
 	}
-	return a.TestAllNodes()
+	results, err := a.TestAllNodes()
+	if err == nil {
+		a.markInitialNodesProbed()
+	}
+	return results, err
+}
+
+// maybeInitialNodesProbe pings all nodes once after the very first successful connect.
+func (a *App) maybeInitialNodesProbe() {
+	a.mu.Lock()
+	done := a.settings != nil && a.settings.InitialNodesProbed
+	a.mu.Unlock()
+	if done {
+		return
+	}
+	go func() {
+		if a.manager == nil || !a.manager.Running() {
+			return
+		}
+		if a.ctx != nil {
+			runtime.EventsEmit(a.ctx, "nodes:probe", map[string]any{"phase": "start"})
+		}
+		_, err := a.TestAllNodes()
+		if a.ctx != nil {
+			payload := map[string]any{"phase": "done"}
+			if err != nil {
+				payload["error"] = err.Error()
+			}
+			runtime.EventsEmit(a.ctx, "nodes:probe", payload)
+		}
+		if err != nil {
+			if a.log != nil {
+				a.log.Warn("initial nodes probe: %v", err)
+			}
+			return
+		}
+		a.markInitialNodesProbed()
+		if a.log != nil {
+			a.log.Info("initial nodes probe completed")
+		}
+	}()
+}
+
+func (a *App) markInitialNodesProbed() {
+	a.mu.Lock()
+	if a.settings == nil || a.settings.InitialNodesProbed {
+		a.mu.Unlock()
+		return
+	}
+	a.settings.InitialNodesProbed = true
+	path := ""
+	if a.paths != nil {
+		path = a.paths.SettingsFile()
+	}
+	cfg := a.settings
+	a.mu.Unlock()
+	if path != "" {
+		_ = profiles.SaveSettings(path, cfg)
+	}
 }
 
 // TestAllNodes runs latency tests against all selectable nodes (limited concurrency).
@@ -1575,14 +1622,73 @@ func (a *App) TestAllNodes() ([]NodeDelayResult, error) {
 	})
 
 	// Restore previous selection (mass ping with HEAD switches nodes).
-	if prev != "" && a.api != nil {
-		if err := a.api.SelectProxy(a.proxyGroup(), prev); err != nil {
-			a.log.Warn("restore node after ping: %v", err)
-		} else {
-			_ = a.api.CloseConnections()
+	if prev != "" && a.settings != nil {
+		a.settings.SelectedNode = prev
+	}
+	if prev != "" && a.api != nil && a.manager != nil && a.manager.Running() {
+		if err := a.restoreSelectedNode("ping"); err != nil {
+			// Core may have been stopped mid-ping (settings reload / disconnect) — not actionable.
+			if a.log != nil && !isControllerUnavailable(err) {
+				a.log.Warn("restore node after ping: %v", err)
+			}
 		}
 	}
 	return out, nil
+}
+
+func isControllerUnavailable(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := strings.ToLower(err.Error())
+	return strings.Contains(s, "connection refused") ||
+		strings.Contains(s, "connectex") ||
+		strings.Contains(s, "no connection could be made") ||
+		strings.Contains(s, "actively refused") ||
+		strings.Contains(s, "wsarecv") ||
+		strings.Contains(s, "eof")
+}
+
+// restoreSelectedNode selects settings.SelectedNode if it still exists in the group.
+// Stale names (after subscription refresh) are cleared and we fall back to AUTO.
+func (a *App) restoreSelectedNode(reason string) error {
+	if a.api == nil || a.settings == nil {
+		return nil
+	}
+	want := strings.TrimSpace(a.settings.SelectedNode)
+	if want == "" {
+		return nil
+	}
+	group := a.proxyGroup()
+	g, err := a.api.Group(group)
+	if err != nil {
+		return err
+	}
+	exists := want == defaults.AutoGroup
+	if !exists {
+		for _, n := range g.All {
+			if n == want {
+				exists = true
+				break
+			}
+		}
+	}
+	if !exists {
+		if a.log != nil {
+			a.log.Info("selected node %q gone after %s — falling back to %s", want, reason, defaults.AutoGroup)
+		}
+		a.settings.SelectedNode = defaults.AutoGroup
+		want = defaults.AutoGroup
+		_ = profiles.SaveSettings(a.paths.SettingsFile(), a.settings)
+	}
+	if g.Now == want {
+		return nil
+	}
+	if err := a.api.SelectProxy(group, want); err != nil {
+		return err
+	}
+	_ = a.api.CloseConnections()
+	return nil
 }
 
 // ShowWindow brings the main window back (close-to-tray flow).
@@ -1645,4 +1751,36 @@ func (a *App) GetLogsTail(maxLines int) (string, error) {
 		b.WriteString(coreTail)
 	}
 	return b.String(), nil
+}
+
+// OpenLogsFolder opens the data directory that holds client.log (and core/ beside it).
+func (a *App) OpenLogsFolder() error {
+	if a.paths == nil {
+		return fmt.Errorf("paths not ready")
+	}
+	return winutil.OpenFolder(a.paths.DataDir())
+}
+
+// ExportLogs writes content (usually the UI-filtered view) via a save dialog.
+func (a *App) ExportLogs(content string) error {
+	if a.ctx == nil {
+		return fmt.Errorf("app not ready")
+	}
+	path, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
+		Title:           "Сохранить лог",
+		DefaultFilename: "moy-vpn-logs.txt",
+		Filters: []runtime.FileFilter{
+			{DisplayName: "Текст (*.txt)", Pattern: "*.txt"},
+		},
+	})
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(path) == "" {
+		return nil // cancelled
+	}
+	if !strings.HasSuffix(strings.ToLower(path), ".txt") {
+		path += ".txt"
+	}
+	return os.WriteFile(path, []byte(content), 0o600)
 }
