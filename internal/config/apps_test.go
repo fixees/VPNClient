@@ -115,6 +115,12 @@ func TestBuildAppRoutingKeepsSnifferForSiteRules(t *testing.T) {
 	if !strings.Contains(text, "force-dns-mapping: true") {
 		t.Fatalf("expected force-dns-mapping:\n%s", text)
 	}
+	if strings.Contains(text, "override-destination: true") {
+		t.Fatalf("override-destination must stay false (Cloudflare Access):\n%s", text)
+	}
+	if !strings.Contains(text, "cloudflareaccess.com") {
+		t.Fatalf("expected cloudflareaccess skip-domain:\n%s", text)
+	}
 	if !strings.Contains(text, "DOMAIN-SUFFIX,api2.cursor.sh") {
 		t.Fatalf("expected cursor domain rule:\n%s", text)
 	}

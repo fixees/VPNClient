@@ -444,7 +444,7 @@ func (c *Client) ReloadConfig(path string) error {
 	if err != nil {
 		return err
 	}
-	return c.doJSON(http.MethodPut, "/configs?force=true", payload, nil)
+	return c.doJSONWithTimeout(http.MethodPut, "/configs?force=true", payload, nil, defaults.ReloadConfigTimeout)
 }
 
 // Mode reads current mode from /configs.
@@ -494,6 +494,13 @@ func (c *Client) getJSONWithTimeout(path string, timeout time.Duration, dest any
 }
 
 func (c *Client) doJSON(method, path string, body []byte, dest any) error {
+	return c.doJSONWithTimeout(method, path, body, dest, defaults.APITimeout)
+}
+
+func (c *Client) doJSONWithTimeout(method, path string, body []byte, dest any, timeout time.Duration) error {
+	if timeout <= 0 {
+		timeout = defaults.APITimeout
+	}
 	var reader io.Reader
 	if body != nil {
 		reader = bytes.NewReader(body)
@@ -506,7 +513,14 @@ func (c *Client) doJSON(method, path string, body []byte, dest any) error {
 		req.Header.Set("Content-Type", "application/json")
 	}
 	c.applyAuth(req)
-	resp, err := c.httpClient.Do(req)
+	client := c.httpClient
+	if timeout != defaults.APITimeout {
+		client = &http.Client{
+			Timeout:   timeout,
+			Transport: c.httpClient.Transport,
+		}
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}

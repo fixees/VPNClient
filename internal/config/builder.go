@@ -224,12 +224,18 @@ func Build(in BuildInput) ([]byte, error) {
 	// Sniffer on every DIRECT browser flow under TUN is expensive and often stalls CDNs.
 	// With app split-tunnel alone, keep it off. But custom site lists need SNI sniffing:
 	// Electron/Cursor use DoH, so DOMAIN rules never see a DNS mapping without the sniffer.
+	// override-destination=false: rewriting the dial IP from SNI breaks Cloudflare Access
+	// and similar TLS flows (ERR_SSL_PROTOCOL_ERROR) while DNS mapping is enough for rules.
 	if in.Sniffer && (!appRouting || HasCustomSiteRules(in)) {
 		doc["sniffer"] = map[string]any{
 			"enable":               true,
 			"parse-pure-ip":        true,
 			"force-dns-mapping":    true,
-			"override-destination": true,
+			"override-destination": false,
+			"skip-domain": []string{
+				"+.cloudflareaccess.com",
+				"cloudflareaccess.com",
+			},
 			"sniff": map[string]any{
 				"TLS": map[string]any{
 					"ports": []any{443, "8443"},

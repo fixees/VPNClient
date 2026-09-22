@@ -50,6 +50,8 @@ const (
 // Timing.
 const (
 	APITimeout            = 3 * time.Second
+	// Mihomo PUT /configs?force=true rebuilds TUN/DNS/rules; 3s is too short on large profiles.
+	ReloadConfigTimeout   = 45 * time.Second
 	// Mihomo pushes /traffic once per tick (default 1s); allow >1s for one-shot reads.
 	TrafficSampleTimeout  = 2 * time.Second
 	TrafficStreamInterval = 500 // ms; passed as ?interval=
@@ -67,6 +69,7 @@ const (
 	DelayAPITimeoutMaxMS  = 30000 // mihomo parses timeout as int16
 	DefaultSubIntervalMin = 360
 	ReconnectBackoff      = 5 * time.Second
+	// Must stay ≤ DelayAPITimeoutMaxMS (int16); larger values → HTTP 400 "Body invalid".
 	AutoGroupDelayFloorMS = 20000
 )
 
