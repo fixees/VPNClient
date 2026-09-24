@@ -69,9 +69,12 @@ type App struct {
 	logClientSt os.FileInfo
 	logCoreSt   os.FileInfo
 
-	trayMu     sync.Mutex
-	trayReady  bool
-	trayToggle *systray.MenuItem
+	trayMu         sync.Mutex
+	trayReady      bool
+	trayToggle     *systray.MenuItem
+	trayModeRule   *systray.MenuItem
+	trayModeGlobal *systray.MenuItem
+	trayModeDirect *systray.MenuItem
 
 	startupDeepLink string
 	deeplinkMu      sync.Mutex
