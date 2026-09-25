@@ -33,9 +33,12 @@ type BuildInput struct {
 	RouteDirect      string // multiline: domains / IPs / regexp → DIRECT
 	RouteBlock       string // multiline → REJECT
 	RouteProxy       string // multiline → PROXY group
-	RouteWhitelist   bool   // MATCH → REJECT; only listed DIRECT/PROXY allowed
+	RouteWhitelist   bool   // MATCH → DIRECT; only listed PROXY/REJECT differ from default
 	AppRouteMode     string // off | whitelist | blacklist
 	AppRouteList     string // multiline PROCESS-NAME / paths
+	// AppInstallDirs are resolved install roots used for PROCESS-PATH-REGEX
+	// (Electron helpers under the same tree as Cursor.exe, Discord.exe, …).
+	AppInstallDirs []string
 	// AppWhitelistKeepDirect keeps MATCH,DIRECT when whitelist mode had apps
 	// but compat stripped them all (avoid collapsing to full-tunnel MATCH,PROXY).
 	AppWhitelistKeepDirect bool
@@ -274,10 +277,16 @@ func buildRules(in BuildInput) []string {
 			}
 		}
 	}
-	// Custom lists: block → direct → force-proxy, then per-app process rules,
-	// then GEOIP (unless domain whitelist), then MATCH.
-	rules = AppendCustomRules(rules, in)
+	// Site DIRECT/REJECT first (e.g. Cursor CDN), then process/install-tree rules,
+	// then force-proxy domains, GEOIP, MATCH.
+	proxyTarget := in.ProxyGroup
+	if proxyTarget == "" {
+		proxyTarget = defaults.ProxyGroup
+	}
+	rules = append(rules, ParseCustomRules(in.RouteBlock, "REJECT")...)
+	rules = append(rules, ParseCustomRules(in.RouteDirect, "DIRECT")...)
 	rules = AppendAppProcessRules(rules, in)
+	rules = append(rules, ParseCustomRules(in.RouteProxy, proxyTarget)...)
 	appMode := NormalizeAppRouteMode(in.AppRouteMode)
 	if !in.RouteWhitelist && appMode != AppRouteWhitelist {
 		if geo := strings.ToUpper(strings.TrimSpace(in.BypassGEOIP)); geo != "" && geo != "OFF" && geo != "NONE" {
@@ -289,9 +298,9 @@ func buildRules(in BuildInput) []string {
 		rules = append(rules, "MATCH,DIRECT")
 		return rules
 	}
-	// Domain whitelist: everything not explicitly allowed is blocked.
+	// Domain whitelist: everything not explicitly listed goes without VPN.
 	if in.RouteWhitelist {
-		rules = append(rules, "MATCH,REJECT")
+		rules = append(rules, "MATCH,DIRECT")
 		return rules
 	}
 	// WARP as exit layer (via-proxy): MATCH → WARP, WireGuard dials through PROXY.

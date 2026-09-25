@@ -156,8 +156,8 @@ func TestConfigBuildWhitelistMode(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(raw)
-	if !strings.Contains(text, "MATCH,REJECT") {
-		t.Fatalf("expected MATCH,REJECT:\n%s", text)
+	if !strings.Contains(text, "MATCH,DIRECT") {
+		t.Fatalf("expected MATCH,DIRECT:\n%s", text)
 	}
 	if strings.Contains(text, "GEOIP,CN,DIRECT") {
 		t.Fatal("GEOIP bypass must be off in whitelist mode")

@@ -31,6 +31,67 @@ func TestParseAppListAndRules(t *testing.T) {
 	}
 }
 
+func TestProcessPathRegexAndInstallDirs(t *testing.T) {
+	rx := ProcessPathRegex(`C:\Users\me\AppData\Local\Programs\cursor`)
+	if !strings.Contains(rx, "cursor") || !strings.Contains(rx, `(?i)`) {
+		t.Fatalf("regex=%q", rx)
+	}
+	dirs := CollectAppInstallDirs("Cursor.exe", []AppPathHint{
+		{Name: "Cursor.exe", Path: `C:\Users\me\AppData\Local\Programs\cursor\Cursor.exe`},
+		{Name: "chrome.exe", Path: `C:\Program Files\Google\Chrome\Application\chrome.exe`},
+	})
+	if len(dirs) != 1 || !strings.Contains(strings.ToLower(dirs[0]), `programs\cursor`) {
+		t.Fatalf("dirs=%v", dirs)
+	}
+	in := BuildInput{
+		ProxyGroup:     "PROXY",
+		AppRouteMode:   AppRouteWhitelist,
+		AppRouteList:   "Cursor.exe",
+		AppInstallDirs: dirs,
+	}
+	rules := AppendAppProcessRules(nil, in)
+	joined := strings.Join(rules, "\n")
+	if !strings.Contains(joined, "PROCESS-NAME,Cursor.exe,PROXY") {
+		t.Fatalf("missing name rule: %v", rules)
+	}
+	if !strings.Contains(joined, "PROCESS-PATH-REGEX,") {
+		t.Fatalf("missing path regex: %v", rules)
+	}
+}
+
+func TestWhitelistProcessRulesBeforeDomains(t *testing.T) {
+	in := BuildInput{
+		ProxyGroup:     "PROXY",
+		AppRouteMode:   AppRouteWhitelist,
+		AppRouteList:   "Cursor.exe",
+		AppInstallDirs: []string{`C:\Apps\cursor`},
+		RouteDirect:    "cdn.cursor.sh",
+		RouteProxy:     "api2.cursor.sh",
+		BypassLAN:      false,
+	}
+	rules := buildRules(in)
+	directIdx, procIdx, proxyIdx := -1, -1, -1
+	for i, r := range rules {
+		if strings.Contains(r, "cdn.cursor.sh") {
+			directIdx = i
+		}
+		if strings.HasPrefix(r, "PROCESS-NAME,Cursor.exe,") || strings.HasPrefix(r, "PROCESS-PATH-REGEX,") {
+			if procIdx < 0 {
+				procIdx = i
+			}
+		}
+		if strings.Contains(r, "api2.cursor.sh") {
+			proxyIdx = i
+		}
+	}
+	if directIdx < 0 || procIdx < 0 || proxyIdx < 0 {
+		t.Fatalf("missing rules: %v", rules)
+	}
+	if !(directIdx < procIdx && procIdx < proxyIdx) {
+		t.Fatalf("want DIRECT < PROCESS < PROXY order, got %v", rules)
+	}
+}
+
 func TestBuildRulesAppWhitelist(t *testing.T) {
 	in := BuildInput{
 		ProxyGroup:   "PROXY",

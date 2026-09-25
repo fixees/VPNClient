@@ -80,7 +80,7 @@ type Settings struct {
 	RouteDirect             string `json:"routeDirect"`     // multiline domains/IPs/regexp → DIRECT
 	RouteBlock              string `json:"routeBlock"`      // multiline → REJECT
 	RouteProxy              string `json:"routeProxy"`      // multiline → PROXY
-	RouteWhitelist          bool   `json:"routeWhitelist"`  // MATCH→REJECT; only listed traffic allowed
+	RouteWhitelist          bool   `json:"routeWhitelist"`  // MATCH→DIRECT; only listed PROXY/REJECT differ
 	AppRouteMode            string `json:"appRouteMode"`    // off | whitelist | blacklist
 	AppRouteList            string `json:"appRouteList"`    // multiline process names / paths
 	DNSEnhancedMode         string `json:"dnsEnhancedMode"` // fake-ip | redir-host
