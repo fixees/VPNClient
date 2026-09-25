@@ -1071,6 +1071,21 @@ textarea {
 }
 .app-chip:hover { border-color: rgba(255, 107, 122, 0.45); }
 .app-chip-x { opacity: 0.7; font-weight: 700; }
+
+.compat-banner {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 200, 87, 0.35);
+  background: rgba(255, 200, 87, 0.08);
+  color: var(--text);
+}
+.compat-banner.hidden { display: none; }
+.compat-item + .compat-item { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255, 200, 87, 0.2); }
+.compat-item strong { color: var(--warn); font-size: 0.9rem; }
+.compat-item p { margin: 6px 0 0; font-size: 0.82rem; line-height: 1.45; color: var(--muted, #9aa7b8); }
+.compat-overlap { margin-top: 8px; font-size: 0.8rem; color: var(--warn); }
+
 .app-picker {
   margin-top: 12px;
   border: 1px solid var(--line);

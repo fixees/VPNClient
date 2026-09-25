@@ -41,6 +41,9 @@ const mock = {
   async SaveSettings() { return null },
   async ListProfiles() { return [] },
   async ListRunningApps() { return [{ name: 'AyuGram.exe', path: 'C:\\Apps\\AyuGram.exe', pid: 1 }] },
+  async DetectNetworkConflicts() { return [] },
+  async ReconcileCompatRouting() { return null },
+  async ExpandAppFamily(name) { return [String(name || '').split(/[/\\]/).pop() || name] },
   async ListNodes() { return [] },
   async CurrentNode() { return '' },
   async SelectNode() { return null },
@@ -876,6 +879,7 @@ function syncAppRouteListField(apps) {
   }
   if (chips) chips.innerHTML = renderAppChips(apps)
   if (state.settings) state.settings.appRouteList = text
+  refreshCompatBanner()
 }
 
 function currentAppRouteList() {
@@ -883,14 +887,29 @@ function currentAppRouteList() {
   return parseAppListText(ta ? ta.value : (state.settings?.appRouteList || ''))
 }
 
-function addAppToRouteList(name) {
+async function addAppToRouteList(name, path) {
   name = String(name || '').trim().replace(/^["']|["']$/g, '')
   if (!name) return
-  // Prefer basename for PROCESS-NAME
-  const base = name.split(/[/\\]/).pop() || name
+  const seed = path || name
+  let family = []
+  try {
+    if (bridge?.ExpandAppFamily) {
+      family = (await bridge.ExpandAppFamily(seed)) || []
+    }
+  } catch {
+    family = []
+  }
+  if (!family.length) {
+    family = [name.split(/[/\\]/).pop() || name]
+  }
   const apps = currentAppRouteList()
-  if (apps.some((a) => a.toLowerCase() === base.toLowerCase())) return
-  apps.push(base)
+  const have = new Set(apps.map((a) => a.toLowerCase()))
+  for (const item of family) {
+    const base = String(item || '').split(/[/\\]/).pop() || item
+    if (!base || have.has(base.toLowerCase())) continue
+    have.add(base.toLowerCase())
+    apps.push(base)
+  }
   apps.sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }))
   syncAppRouteListField(apps)
 }
@@ -899,6 +918,44 @@ function removeAppFromRouteList(name) {
   const key = String(name || '').toLowerCase()
   const apps = currentAppRouteList().filter((a) => a.toLowerCase() !== key)
   syncAppRouteListField(apps)
+}
+
+async function refreshCompatBanner() {
+  const el = document.getElementById('compat-banner')
+  if (!el || !bridge?.DetectNetworkConflicts) return
+  const modeEl = document.getElementById('app-route-mode')
+  const mode = modeEl ? modeEl.value : (state.settings?.appRouteMode || 'off')
+  const list = currentAppRouteList().join('\n')
+  try {
+    const findings = (await bridge.DetectNetworkConflicts(mode, list)) || []
+    if (!findings.length) {
+      el.classList.add('hidden')
+      el.innerHTML = ''
+    } else {
+      const blocks = findings.map((f) => {
+        const bits = []
+        if ((f.overlapApps || []).length) {
+          bits.push(`приложения: ${(f.overlapApps || []).map(escapeHtml).join(', ')}`)
+        }
+        if ((f.overlapDomains || []).length) {
+          bits.push(`домены: ${(f.overlapDomains || []).map(escapeHtml).join(', ')}`)
+        }
+        const overlap = bits.length
+          ? `<div class="compat-overlap">Пока конфликт активен, без VPN: ${bits.join('; ')}.</div>`
+          : ''
+        return `<div class="compat-item"><strong>${escapeHtml(f.title || f.id || 'Конфликт')}</strong><p>${escapeHtml(f.message || '')}</p>${overlap}</div>`
+      }).join('')
+      el.innerHTML = blocks
+      el.classList.remove('hidden')
+    }
+  } catch {
+    el.classList.add('hidden')
+  }
+  try {
+    if (bridge?.ReconcileCompatRouting && state.status?.state === 'connected') {
+      await bridge.ReconcileCompatRouting()
+    }
+  } catch (_) {}
 }
 
 async function openAppPicker() {
@@ -929,10 +986,11 @@ async function openAppPicker() {
     }
     list.innerHTML = filtered.map((a) => {
       const name = a.name || ''
+      const path = a.path || ''
       const on = selected.has(name.toLowerCase())
-      return `<button type="button" class="app-picker-item ${on ? 'on' : ''}" data-app-add="${escapeHtml(name)}">
+      return `<button type="button" class="app-picker-item ${on ? 'on' : ''}" data-app-add="${escapeHtml(name)}" data-app-path="${escapeHtml(path)}">
         <strong>${escapeHtml(name)}</strong>
-        <span>${escapeHtml(a.path || '')}</span>
+        <span>${escapeHtml(path)}</span>
       </button>`
     }).join('')
   }
@@ -952,6 +1010,7 @@ function renderAppRoutePanel(s) {
       <div class="panel-title">Приложения</div>
       <p class="muted rules-hint">Можно пускать через VPN только выбранные программы (или наоборот — исключить их). Нужен режим «Весь трафик системы». Пример: белый список с Telegram — в VPN уйдёт только он, браузер и остальное работают как обычно.</p>
       <p class="muted rules-hint">Пока включён этот режим, блокировка интернета без VPN и защита DNS отключаются сами — иначе сайты вне списка перестанут открываться. Смена списка применяется сразу, без ручного перезапуска.</p>
+      <div id="compat-banner" class="compat-banner hidden" role="status"></div>
       <label class="field">Режим для приложений
         <select name="appRouteMode" id="app-route-mode">
           <option value="off" ${mode === 'off' ? 'selected' : ''}>Выключено — как настроено выше</option>
@@ -1870,6 +1929,9 @@ async function boot() {
     if (state.view === 'settings' && state.settingsSection === 'inbound') {
       loadProxyEndpoints().catch(() => {})
     }
+    if (state.view === 'settings' && state.settingsSection === 'routing') {
+      refreshCompatBanner()
+    }
   }
 
   async function loadProxyEndpoints() {
@@ -2087,6 +2149,7 @@ async function boot() {
       window.clearTimeout(settingsSaveTimer)
       settingsSaveTimer = 0
       persistSettingsForm(form).catch(() => {})
+      if (e.target.id === 'app-route-mode') refreshCompatBanner()
     }
   })
 
@@ -2146,7 +2209,7 @@ async function boot() {
     const appAdd = e.target.closest('[data-app-add]')
     if (appAdd) {
       e.preventDefault()
-      addAppToRouteList(appAdd.getAttribute('data-app-add') || '')
+      addAppToRouteList(appAdd.getAttribute('data-app-add') || '', appAdd.getAttribute('data-app-path') || '')
       appAdd.classList.add('on')
       return
     }

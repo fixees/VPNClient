@@ -16,6 +16,7 @@ import (
 	"myinternetvpn/client/internal/api"
 	"myinternetvpn/client/internal/applog"
 	"myinternetvpn/client/internal/bundle"
+	"myinternetvpn/client/internal/compat"
 	"myinternetvpn/client/internal/config"
 	"myinternetvpn/client/internal/core"
 	"myinternetvpn/client/internal/deeplink"
@@ -83,6 +84,8 @@ type App struct {
 	startupDeepLink string
 	deeplinkMu      sync.Mutex
 
+	compatExcludeKey string // last applied PreferDirect exclusion fingerprint
+
 	mu sync.Mutex
 }
 
@@ -132,6 +135,7 @@ func (a *App) startup(ctx context.Context) {
 		// Persist generated local secret on first run.
 		_ = profiles.SaveSettings(settingsPath, a.settings)
 	}
+	compat.LoadDefault(a.paths.DataDir())
 	_ = a.applyAutostartSetting()
 
 	a.api = api.NewClient(a.settings.ControllerURL, a.settings.Secret)
@@ -553,9 +557,7 @@ func (a *App) reloadRunningConfig() error {
 	if err != nil {
 		return err
 	}
-	in := config.FromSettings(a.settings)
-	in.Profile = profile
-	in.ProxyGroup = a.proxyGroup()
+	in := a.buildInput(profile)
 	doc, err := config.Build(in)
 	if err != nil {
 		return err
@@ -659,6 +661,114 @@ func (a *App) SetMode(mode string) error {
 
 func (a *App) ListRunningApps() ([]winutil.RunningApp, error) {
 	return winutil.ListRunningApps()
+}
+
+// DetectNetworkConflicts reports DPI / packet-filter tools that fight TUN split-tunnel.
+// Pass mode and list from the UI for live checks; empty mode falls back to saved settings.
+func (a *App) DetectNetworkConflicts(mode, list string) ([]compat.Finding, error) {
+	apps, err := winutil.ListRunningApps()
+	if err != nil {
+		apps = nil
+	}
+	mode = strings.TrimSpace(mode)
+	a.mu.Lock()
+	routeProxy := ""
+	if a.settings != nil {
+		if mode == "" {
+			mode = a.settings.AppRouteMode
+			list = a.settings.AppRouteList
+		}
+		routeProxy = a.settings.RouteProxy
+	}
+	a.mu.Unlock()
+	return compat.DetectDefault(apps, a.compatRouteContext(mode, list, routeProxy)), nil
+}
+
+// ReconcileCompatRouting rebuilds mihomo rules when a DPI conflict appears/disappears
+// while VPN is already connected (e.g. user started zapret after connect).
+func (a *App) ReconcileCompatRouting() error {
+	apps, _ := winutil.ListRunningApps()
+	a.mu.Lock()
+	running := a.manager != nil && a.manager.Running()
+	if !running || a.settings == nil {
+		a.mu.Unlock()
+		return nil
+	}
+	findings := compat.DetectDefault(apps, a.compatRouteContext(a.settings.AppRouteMode, a.settings.AppRouteList, a.settings.RouteProxy))
+	key := compat.ExclusionKey(findings)
+	prev := a.compatExcludeKey
+	a.mu.Unlock()
+	if key == prev {
+		return nil
+	}
+	if a.log != nil {
+		a.log.Info("compat: conflict state changed, reloading routing")
+	}
+	return a.reloadRunningConfig()
+}
+
+// ExpandAppFamily returns related .exe names from the same install tree (generic, no per-app hardcode).
+func (a *App) ExpandAppFamily(exePathOrName string) []string {
+	return compat.ExpandAppFamily(exePathOrName)
+}
+
+func (a *App) compatRouteContext(mode, list, routeProxy string) compat.RouteContext {
+	domains := config.ParseAppList(routeProxy) // reuse multiline unique trim (domains, not processes)
+	// ParseAppList uses NormalizeProcessName which is fine for domain lines too (no path seps).
+	return compat.RouteContext{
+		Mode:    mode,
+		Apps:    config.ParseAppList(list),
+		Domains: domains,
+	}
+}
+
+// buildInput prepares mihomo input and keeps apps/domains owned by conflicting DPI tools off the VPN path.
+func (a *App) buildInput(profile profiles.Profile) config.BuildInput {
+	in := config.FromSettings(a.settings)
+	in.Profile = profile
+	in.ProxyGroup = a.proxyGroup()
+
+	origApps := config.ParseAppList(in.AppRouteList)
+	apps, _ := winutil.ListRunningApps()
+	findings := compat.DetectDefault(apps, a.compatRouteContext(in.AppRouteMode, in.AppRouteList, in.RouteProxy))
+	a.compatExcludeKey = compat.ExclusionKey(findings)
+
+	excludeApps := compat.SuggestDirectApps(findings)
+	excludeDomains := compat.SuggestDirectDomainLines(findings)
+	if len(excludeApps) == 0 && len(excludeDomains) == 0 {
+		return in
+	}
+	if len(excludeApps) > 0 {
+		adjusted := compat.RemoveAppsFromList(in.AppRouteList, excludeApps)
+		if adjusted != in.AppRouteList {
+			in.AppRouteList = adjusted
+			if a.log != nil {
+				title := "DPI tool"
+				if len(findings) > 0 && findings[0].Title != "" {
+					title = findings[0].Title
+				}
+				a.log.Warn("compat: %s stay DIRECT (conflict with %s)", strings.Join(excludeApps, ", "), title)
+			}
+		}
+	}
+	if len(excludeDomains) > 0 {
+		adjusted := compat.RemoveLinesFromList(in.RouteProxy, excludeDomains)
+		if adjusted != in.RouteProxy {
+			in.RouteProxy = adjusted
+			if a.log != nil {
+				a.log.Warn("compat: proxy domain rules skipped while DPI tool active: %s", strings.Join(excludeDomains, ", "))
+			}
+		}
+	}
+	// Whitelist with apps that compat emptied → keep MATCH,DIRECT (not full-tunnel).
+	if config.NormalizeAppRouteMode(in.AppRouteMode) == config.AppRouteWhitelist &&
+		len(origApps) > 0 && len(config.ParseAppList(in.AppRouteList)) == 0 {
+		in.AppWhitelistKeepDirect = true
+		if a.log != nil {
+			a.log.Warn("compat: whitelist emptied by conflict — keeping MATCH,DIRECT (not full tunnel)")
+		}
+	}
+	return in
 }
 
 func (a *App) ListProfiles() ([]profiles.Profile, error) {
@@ -929,9 +1039,7 @@ func (a *App) Connect() error {
 	if err != nil {
 		return err
 	}
-	in := config.FromSettings(a.settings)
-	in.Profile = profile
-	in.ProxyGroup = a.proxyGroup()
+	in := a.buildInput(profile)
 	doc, err := config.Build(in)
 	if err != nil {
 		return err
@@ -952,8 +1060,8 @@ func (a *App) Connect() error {
 		_ = a.saveProxySnapshot(snap, a.settings.MixedPort)
 	}
 
-	appWhitelist := config.NormalizeAppRouteMode(a.settings.AppRouteMode) == config.AppRouteWhitelist &&
-		len(config.ParseAppList(a.settings.AppRouteList)) > 0
+	// Use effective post-compat input (not raw settings) for protection gating.
+	appWhitelist := config.AppWhitelistActive(in)
 
 	if a.settings.KillSwitch {
 		// Whitelist sends non-listed apps DIRECT via the physical NIC; a firewall

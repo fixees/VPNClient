@@ -36,7 +36,10 @@ type BuildInput struct {
 	RouteWhitelist   bool   // MATCH → REJECT; only listed DIRECT/PROXY allowed
 	AppRouteMode     string // off | whitelist | blacklist
 	AppRouteList     string // multiline PROCESS-NAME / paths
-	DNSEnhancedMode  string
+	// AppWhitelistKeepDirect keeps MATCH,DIRECT when whitelist mode had apps
+	// but compat stripped them all (avoid collapsing to full-tunnel MATCH,PROXY).
+	AppWhitelistKeepDirect bool
+	DNSEnhancedMode        string
 	DNSNameservers   []string
 	DNSFallbacks     []string
 	DNSFakeIPRange   string
@@ -103,8 +106,7 @@ func Build(in BuildInput) ([]byte, error) {
 	}
 
 	appRouting := AppRoutingEnabled(in)
-	appMode := NormalizeAppRouteMode(in.AppRouteMode)
-	appWhitelist := appMode == AppRouteWhitelist && len(ParseAppList(in.AppRouteList)) > 0
+	appWhitelist := AppWhitelistActive(in)
 	// fake-ip breaks DIRECT apps that still traverse TUN (Discord RTC/QUIC, etc.).
 	// App split-tunnel always has some PROCESS → DIRECT path, so prefer redir-host.
 	dnsMode := in.DNSEnhancedMode
@@ -283,7 +285,7 @@ func buildRules(in BuildInput) []string {
 		}
 	}
 	// App whitelist: only listed apps use VPN; everything else goes DIRECT.
-	if appMode == AppRouteWhitelist && len(ParseAppList(in.AppRouteList)) > 0 {
+	if AppWhitelistActive(in) {
 		rules = append(rules, "MATCH,DIRECT")
 		return rules
 	}

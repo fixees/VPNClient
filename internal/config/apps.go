@@ -96,8 +96,27 @@ func AppendAppProcessRules(rules []string, in BuildInput) []string {
 	return rules
 }
 
-// AppRoutingEnabled reports whether process-based rules will be emitted.
+// AppRoutingEnabled reports whether process-based rules will be emitted
+// (or whitelist is forced DIRECT after compat emptied the list).
 func AppRoutingEnabled(in BuildInput) bool {
 	mode := NormalizeAppRouteMode(in.AppRouteMode)
-	return mode != AppRouteOff && len(ParseAppList(in.AppRouteList)) > 0
+	if mode == AppRouteOff {
+		return false
+	}
+	if AppWhitelistActive(in) {
+		return true
+	}
+	return mode == AppRouteBlacklist && len(ParseAppList(in.AppRouteList)) > 0
+}
+
+// AppWhitelistActive is true when whitelist routing applies, including the
+// empty-list + KeepDirect case (compat stripped every listed app).
+func AppWhitelistActive(in BuildInput) bool {
+	if NormalizeAppRouteMode(in.AppRouteMode) != AppRouteWhitelist {
+		return false
+	}
+	if len(ParseAppList(in.AppRouteList)) > 0 {
+		return true
+	}
+	return in.AppWhitelistKeepDirect
 }

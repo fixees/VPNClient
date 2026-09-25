@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "tools": [
+    {
+      "id": "zapret",
+      "title": "zapret",
+      "match": {
+        "process_names": [
+          "winws.exe",
+          "zapret.exe",
+          "zapret-winws.exe",
+          "blockcheck.exe",
+          "nfqws.exe"
+        ],
+        "path_substrings": [
+          "\\zapret\\",
+          "/zapret/",
+          "\\winws\\",
+          "zapret-discord",
+          "zapret_discord"
+        ],
+        "drivers": [
+          "WinDivert",
+          "WinDivert1.4",
+          "WinDivert14"
+        ]
+      },
+      "handles": {
+        "app_names": [
+          "discord.exe",
+          "discordptb.exe",
+          "discordcanary.exe",
+          "discorddevelopment.exe"
+        ],
+        "domain_keywords": [
+          "discord",
+          "discordapp",
+          "discord.gg",
+          "youtube",
+          "googlevideo",
+          "youtu.be",
+          "ytimg",
+          "ggpht"
+        ]
+      },
+      "when_overlap": {
+        "severity": "warn_and_prefer_direct",
+        "message": "Обнаружен zapret (WinDivert). Он сам обходит блокировки Discord/YouTube на уровне пакетов. Если пустить эти программы через VPN, zapret и TUN будут драться за трафик — Discord часто не запускается. Оставьте их без VPN (DIRECT), а через VPN гоняйте остальное."
+      }
+    },
+    {
+      "id": "goodbyedpi",
+      "title": "GoodbyeDPI",
+      "match": {
+        "process_names": [
+          "goodbyedpi.exe"
+        ],
+        "path_substrings": [
+          "\\goodbyedpi\\",
+          "/goodbyedpi/"
+        ],
+        "drivers": [
+          "WinDivert",
+          "WinDivert1.4"
+        ]
+      },
+      "handles": {
+        "app_names": [],
+        "domain_keywords": []
+      },
+      "when_overlap": {
+        "severity": "warn",
+        "message": "Обнаружен GoodbyeDPI (WinDivert). Одновременная работа с TUN/split-tunnel может ломать отдельные приложения. Если что-то отваливается — выключите GoodbyeDPI или уберите приложение из списка VPN."
+      }
+    }
+  ]
+}

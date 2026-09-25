@@ -49,6 +49,26 @@ func TestBuildRulesAppWhitelist(t *testing.T) {
 	}
 }
 
+func TestBuildRulesWhitelistKeepDirectEmptyList(t *testing.T) {
+	in := BuildInput{
+		ProxyGroup:             "PROXY",
+		AppRouteMode:           AppRouteWhitelist,
+		AppRouteList:           "",
+		AppWhitelistKeepDirect: true,
+		TUN:                    true,
+	}
+	rules := buildRules(in)
+	if rules[len(rules)-1] != "MATCH,DIRECT" {
+		t.Fatalf("emptied whitelist must stay MATCH,DIRECT, got %v", rules)
+	}
+	// Without KeepDirect, empty whitelist collapses to full tunnel.
+	in.AppWhitelistKeepDirect = false
+	rules = buildRules(in)
+	if rules[len(rules)-1] != "MATCH,PROXY" {
+		t.Fatalf("empty whitelist without keep → MATCH,PROXY, got %v", rules)
+	}
+}
+
 func TestBuildAppWhitelistForcesRedirHost(t *testing.T) {
 	raw, err := Build(BuildInput{
 		Profile: profiles.Profile{

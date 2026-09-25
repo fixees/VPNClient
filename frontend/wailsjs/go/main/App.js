@@ -8,6 +8,9 @@ export async function SaveSettings() { return null }
 export async function SetMode() { return null }
 export async function ListProfiles() { return [] }
 export async function ListRunningApps() { return [] }
+export async function DetectNetworkConflicts() { return [] }
+export async function ReconcileCompatRouting() { return null }
+export async function ExpandAppFamily() { return [] }
 export async function ListNodes() { return [] }
 export async function CurrentNode() { return '' }
 export async function SelectNode() { return null }
@@ -22,6 +25,10 @@ export async function GetSubscriptionInfo() { return {} }
 export async function RemoveProfile() { return null }
 export async function SetActiveProfile() { return null }
 export async function CopySubscriptionURL() { return null }
+export async function GenerateSubscriptionQR() { return '' }
+export async function ListConnections() { return [] }
+export async function CloseConnection() { return null }
+export async function CloseAllConnections() { return null }
 export async function Connect() { return null }
 export async function Disconnect() { return null }
 export async function ToggleConnect() { return null }
