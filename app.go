@@ -75,6 +75,9 @@ type App struct {
 	trayReady         bool
 	trayToggle        *systray.MenuItem
 	trayRefreshCancel context.CancelFunc
+	trayModeRule      *systray.MenuItem
+	trayModeGlobal    *systray.MenuItem
+	trayModeDirect    *systray.MenuItem
 
 	startupDeepLink string
 	deeplinkMu      sync.Mutex

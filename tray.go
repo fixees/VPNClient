@@ -32,10 +32,21 @@ func (a *App) onTrayReady() {
 	mShow := systray.AddMenuItem("Показать", "Открыть окно")
 	mToggle := systray.AddMenuItem("Подключить", "Подключить / отключить VPN")
 	systray.AddSeparator()
+
+	// Mode submenu
+	mMode := systray.AddMenuItem("Режим", "Переключить режим прокси")
+	mModeRule := mMode.AddSubMenuItem("По правилам", "Режим по правилам")
+	mModeGlobal := mMode.AddSubMenuItem("Все через VPN", "Весь трафик через VPN")
+	mModeDirect := mMode.AddSubMenuItem("Без VPN", "Прямое подключение")
+
+	systray.AddSeparator()
 	mQuit := systray.AddMenuItem("Выйти", "Закрыть "+defaults.ProductName)
 
 	a.trayMu.Lock()
 	a.trayToggle = mToggle
+	a.trayModeRule = mModeRule
+	a.trayModeGlobal = mModeGlobal
+	a.trayModeDirect = mModeDirect
 	a.trayReady = true
 	a.trayMu.Unlock()
 	a.refreshTrayStatus()
@@ -48,6 +59,21 @@ func (a *App) onTrayReady() {
 			case <-mToggle.ClickedCh:
 				if err := a.ToggleConnect(); err != nil && a.log != nil {
 					a.log.Warn("tray toggle: %v", err)
+				}
+				a.refreshTrayStatus()
+			case <-mModeRule.ClickedCh:
+				if err := a.SetMode("rule"); err != nil && a.log != nil {
+					a.log.Warn("tray set mode rule: %v", err)
+				}
+				a.refreshTrayStatus()
+			case <-mModeGlobal.ClickedCh:
+				if err := a.SetMode("global"); err != nil && a.log != nil {
+					a.log.Warn("tray set mode global: %v", err)
+				}
+				a.refreshTrayStatus()
+			case <-mModeDirect.ClickedCh:
+				if err := a.SetMode("direct"); err != nil && a.log != nil {
+					a.log.Warn("tray set mode direct: %v", err)
 				}
 				a.refreshTrayStatus()
 			case <-mQuit.ClickedCh:
@@ -70,6 +96,9 @@ func (a *App) refreshTrayStatus() {
 	a.trayMu.Lock()
 	ready := a.trayReady
 	toggle := a.trayToggle
+	modeRule := a.trayModeRule
+	modeGlobal := a.trayModeGlobal
+	modeDirect := a.trayModeDirect
 	a.trayMu.Unlock()
 	if !ready {
 		return
@@ -78,9 +107,33 @@ func (a *App) refreshTrayStatus() {
 	connected := a.manager != nil && a.manager.Running()
 	profile := ""
 	node := ""
+	mode := ""
 	if a.settings != nil {
 		profile = a.settings.ActiveProfile
 		node = a.settings.SelectedNode
+		mode = a.settings.Mode
+	}
+
+	// Update mode checkmarks
+	if modeRule != nil && modeGlobal != nil && modeDirect != nil {
+		switch mode {
+		case "rule":
+			modeRule.Check()
+			modeGlobal.Uncheck()
+			modeDirect.Uncheck()
+		case "global":
+			modeRule.Uncheck()
+			modeGlobal.Check()
+			modeDirect.Uncheck()
+		case "direct":
+			modeRule.Uncheck()
+			modeGlobal.Uncheck()
+			modeDirect.Check()
+		default:
+			modeRule.Check()
+			modeGlobal.Uncheck()
+			modeDirect.Uncheck()
+		}
 	}
 
 	if connected {
