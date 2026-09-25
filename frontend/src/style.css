@@ -865,6 +865,113 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   opacity: 0.92;
 }
 
+/* ── Connections panel ────────────────────────────────────────────────── */
+.connections-panel {
+  display: grid;
+  gap: 16px;
+}
+.connections-head {
+  display: grid;
+  gap: 12px;
+}
+.connections-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+.summary-stat {
+  display: grid;
+  gap: 4px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.2);
+}
+.summary-label {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+.summary-stat strong {
+  font-size: 1.1rem;
+  color: var(--accent-strong);
+}
+.connections-list {
+  display: grid;
+  gap: 8px;
+  max-height: 62vh;
+  overflow: auto;
+  padding-right: 2px;
+}
+.conn-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.02);
+  transition: background 0.15s;
+}
+.conn-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+.conn-main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.conn-host {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 0.92rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.conn-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.conn-meta span {
+  white-space: nowrap;
+}
+.conn-stats {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.conn-traffic {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.conn-traffic .dir {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.conn-traffic .dir.up {
+  color: #ffc857;
+}
+.conn-traffic .dir.down {
+  color: #3dde9a;
+}
+.conn-time {
+  color: var(--muted);
+  opacity: 0.7;
+}
+
 .search-box {
   display: flex;
   align-items: center;

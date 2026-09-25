@@ -1296,6 +1296,93 @@ func (a *App) GetTraffic() map[string]any {
 	return out
 }
 
+// ListConnections returns active connections when core is running.
+func (a *App) ListConnections() []map[string]any {
+	if a.manager == nil || !a.manager.Running() || a.api == nil {
+		return []map[string]any{}
+	}
+	conn, err := a.api.Connections()
+	if err != nil {
+		return []map[string]any{}
+	}
+	out := make([]map[string]any, 0, len(conn.Connections))
+	for _, c := range conn.Connections {
+		host := ""
+		network := ""
+		connType := ""
+		sourceIP := ""
+		destIP := ""
+		destPort := ""
+		process := ""
+		if meta := c.Metadata; meta != nil {
+			if v, ok := meta["host"].(string); ok {
+				host = v
+			}
+			if v, ok := meta["network"].(string); ok {
+				network = v
+			}
+			if v, ok := meta["type"].(string); ok {
+				connType = v
+			}
+			if v, ok := meta["sourceIP"].(string); ok {
+				sourceIP = v
+			}
+			if v, ok := meta["destinationIP"].(string); ok {
+				destIP = v
+			}
+			if v, ok := meta["destinationPort"].(string); ok {
+				destPort = v
+			}
+			if v, ok := meta["process"].(string); ok {
+				process = v
+			}
+		}
+		chains := ""
+		if len(c.Chains) > 0 {
+			chains = strings.Join(c.Chains, " → ")
+		}
+		out = append(out, map[string]any{
+			"id":       c.ID,
+			"host":     host,
+			"network":  network,
+			"type":     connType,
+			"sourceIP": sourceIP,
+			"destIP":   destIP,
+			"destPort": destPort,
+			"process":  process,
+			"upload":   c.Upload,
+			"download": c.Download,
+			"start":    c.Start,
+			"chains":   chains,
+			"rule":     c.Rule,
+			"rulePayload": c.RulePayload,
+		})
+	}
+	return out
+}
+
+// CloseConnection closes a single active connection by ID.
+func (a *App) CloseConnection(id string) error {
+	if a.manager == nil || !a.manager.Running() || a.api == nil {
+		return fmt.Errorf("не подключено")
+	}
+	if err := a.api.CloseConnection(id); err != nil {
+		return fmt.Errorf("не удалось закрыть соединение: %w", err)
+	}
+	return nil
+}
+
+// CloseAllConnections closes all active connections.
+func (a *App) CloseAllConnections() error {
+	if a.manager == nil || !a.manager.Running() || a.api == nil {
+		return fmt.Errorf("не подключено")
+	}
+	if err := a.api.CloseConnections(); err != nil {
+		return fmt.Errorf("не удалось закрыть соединения: %w", err)
+	}
+	return nil
+}
+
 // CheckForUpdate queries GitHub release tag (default latest-main).
 func (a *App) CheckForUpdate() (map[string]any, error) {
 	owner := a.settings.UpdateOwner

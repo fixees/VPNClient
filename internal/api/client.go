@@ -30,8 +30,21 @@ type TrafficSnapshot struct {
 
 // ConnectionsInfo is returned by GET /connections.
 type ConnectionsInfo struct {
-	DownloadTotal int64 `json:"downloadTotal"`
-	UploadTotal   int64 `json:"uploadTotal"`
+	DownloadTotal int64              `json:"downloadTotal"`
+	UploadTotal   int64              `json:"uploadTotal"`
+	Connections   []ConnectionDetail `json:"connections"`
+}
+
+// ConnectionDetail is a single active connection from mihomo.
+type ConnectionDetail struct {
+	ID       string                 `json:"id"`
+	Metadata map[string]interface{} `json:"metadata"`
+	Upload   int64                  `json:"upload"`
+	Download int64                  `json:"download"`
+	Start    string                 `json:"start"`
+	Chains   []string               `json:"chains"`
+	Rule     string                 `json:"rule"`
+	RulePayload string              `json:"rulePayload"`
 }
 
 // LiveSnapshot is a single round-trip bundle for UI polling.

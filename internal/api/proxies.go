@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"sort"
@@ -71,6 +72,15 @@ func (c *Client) SelectProxy(group, name string) error {
 // CloseConnections drops active connections (useful after node switch).
 func (c *Client) CloseConnections() error {
 	return c.doJSON(http.MethodDelete, "/connections", nil, nil)
+}
+
+// CloseConnection drops a single active connection by ID.
+func (c *Client) CloseConnection(id string) error {
+	if id == "" {
+		return fmt.Errorf("connection ID is required")
+	}
+	path := "/connections/" + url.PathEscape(id)
+	return c.doJSON(http.MethodDelete, path, nil, nil)
 }
 
 // TestDelay triggers URL-test delay for a proxy name.
