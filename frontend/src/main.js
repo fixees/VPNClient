@@ -25,6 +25,7 @@ const icons = {
   download: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"/><path d="m7.5 11.5 4.5 4.5 4.5-4.5"/><path d="M5 19.5h14"/></svg>`,
   pause: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M8 5.5v13M16 5.5v13"/></svg>`,
   play: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5.5v13l11-6.5z"/></svg>`,
+  qr: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h2M16 16h2M18 14h2M14 18h2M16 20h2M18 18h3M20 20h1"/></svg>`,
 }
 
 const mock = {
@@ -57,6 +58,9 @@ const mock = {
   async ExportLogs() { return null },
   async GenerateWARPConfig() {
     return { privateKey: 'dev', localAddress: '172.16.0.2/32' }
+  },
+  async GenerateSubscriptionQR() {
+    return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg'
   },
 }
 
@@ -472,6 +476,18 @@ function shellHTML() {
         </header>
         <div class="content" id="content"></div>
         <div class="toast" id="toast"></div>
+        <div class="qr-modal-overlay" id="qr-modal-overlay">
+          <div class="qr-modal">
+            <div class="qr-modal-header">
+              <h3 id="qr-modal-title">QR-код подписки</h3>
+              <button class="qr-modal-close" type="button" data-action="close-qr" aria-label="Закрыть">×</button>
+            </div>
+            <div class="qr-modal-body">
+              <img id="qr-modal-img" alt="QR-код подписки" />
+              <p id="qr-modal-hint" class="qr-modal-hint">Отсканируйте этот код на другом устройстве</p>
+            </div>
+          </div>
+        </div>
       </section>
     </div>
   `
@@ -562,6 +578,7 @@ function renderProfiles(state) {
           <span>${count} серверов · ${kind}${p.note ? ' · ' + escapeHtml(p.note) : ''}</span>
         </button>
         <div class="row-actions">
+          ${p.subscriptionURL ? `<button class="icon-ghost" type="button" data-qr="${escapeHtml(p.name)}" title="Показать QR-код">${icons.qr}</button>` : ''}
           ${p.subscriptionURL ? `<button class="icon-ghost" type="button" data-sync="${escapeHtml(p.name)}" title="Обновить">${icons.refresh}</button>` : ''}
           <button class="icon-ghost danger" type="button" data-remove="${escapeHtml(p.name)}" title="Удалить">${icons.trash}</button>
         </div>
@@ -1464,6 +1481,9 @@ async function boot() {
     toastTimer: 0,
     settingsSection: '',
     quotaMenuOpen: false,
+    qrModalOpen: false,
+    qrModalProfile: '',
+    qrModalImage: '',
   }
 
   function showToast(msg, ok = false) {
@@ -1905,6 +1925,12 @@ async function boot() {
         if (card) card.classList.remove('menu-open')
       }
     }
+    if (e.target.id === 'qr-modal-overlay' && state.qrModalOpen) {
+      state.qrModalOpen = false
+      const overlay = document.getElementById('qr-modal-overlay')
+      if (overlay) overlay.classList.remove('show')
+      return
+    }
 
     const nav = e.target.closest('[data-view]')
     if (nav) {
@@ -1985,6 +2011,7 @@ async function boot() {
     const syncOne = e.target.closest('[data-sync]')?.getAttribute('data-sync')
     const remove = e.target.closest('[data-remove]')?.getAttribute('data-remove')
     const node = e.target.closest('[data-node]')?.getAttribute('data-node')
+    const qrProfile = e.target.closest('[data-qr]')?.getAttribute('data-qr')
 
     try {
       if (action === 'toggle') {
@@ -2129,6 +2156,35 @@ async function boot() {
         showToast('Устанавливаю обновление…', true)
         await bridge.ApplyUpdate(state.lastZip)
         showToast('Обновление установлено, перезапуск…', true)
+        return
+      }
+      if (action === 'close-qr') {
+        state.qrModalOpen = false
+        const overlay = document.getElementById('qr-modal-overlay')
+        if (overlay) overlay.classList.remove('show')
+        return
+      }
+      if (qrProfile) {
+        try {
+          showToast('Генерирую QR-код…', true)
+          const qrData = await bridge.GenerateSubscriptionQR(qrProfile)
+          if (!qrData) {
+            showToast('Не удалось создать QR-код', false)
+            return
+          }
+          state.qrModalOpen = true
+          state.qrModalProfile = qrProfile
+          state.qrModalImage = qrData
+          const overlay = document.getElementById('qr-modal-overlay')
+          const img = document.getElementById('qr-modal-img')
+          const title = document.getElementById('qr-modal-title')
+          if (overlay) overlay.classList.add('show')
+          if (img) img.src = qrData
+          if (title) title.textContent = `QR-код: ${qrProfile}`
+          showToast('', false)
+        } catch (err) {
+          showToast(friendlyError(err), false)
+        }
         return
       }
       if (profile) {
