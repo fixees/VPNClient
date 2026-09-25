@@ -71,9 +71,10 @@ type App struct {
 	logClientSt os.FileInfo
 	logCoreSt   os.FileInfo
 
-	trayMu     sync.Mutex
-	trayReady  bool
-	trayToggle *systray.MenuItem
+	trayMu            sync.Mutex
+	trayReady         bool
+	trayToggle        *systray.MenuItem
+	trayRefreshCancel context.CancelFunc
 
 	startupDeepLink string
 	deeplinkMu      sync.Mutex
@@ -993,6 +994,7 @@ func (a *App) Connect() error {
 	a.clearPublicIPCache()
 	a.log.Info("connected profile=%s tun=%v mode=%s", a.settings.ActiveProfile, a.settings.TUN, a.settings.Mode)
 	a.refreshTrayStatus()
+	a.startTrayRefresh()
 	return nil
 }
 
@@ -1002,6 +1004,7 @@ func (a *App) Disconnect() error {
 	if a.health != nil {
 		a.health.Stop()
 	}
+	a.stopTrayRefresh()
 	_ = a.cleanupNetwork()
 	if a.api != nil {
 		a.api.StopTrafficStream()

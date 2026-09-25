@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
+	"time"
 
 	"myinternetvpn/client/internal/defaults"
+	"myinternetvpn/client/internal/format"
 
 	"github.com/getlantern/systray"
 )
@@ -88,6 +91,14 @@ func (a *App) refreshTrayStatus() {
 		if node != "" {
 			tip += " · " + node
 		}
+
+		// Append live rates if connected and fresh data available.
+		if a.api != nil {
+			if up, down, age, ok := a.api.CachedTraffic(); ok && age < 3*time.Second {
+				tip += fmt.Sprintf(" · ↓%s ↑%s", format.FormatRate(down), format.FormatRate(up))
+			}
+		}
+
 		systray.SetTooltip(tip)
 		if toggle != nil {
 			toggle.SetTitle("Отключить")
@@ -108,4 +119,48 @@ func profileOrDash(s string) string {
 		return "—"
 	}
 	return s
+}
+
+// startTrayRefresh launches a background ticker to update the tray tooltip with live rates.
+// Stops automatically when the app context is canceled or when VPN disconnects.
+func (a *App) startTrayRefresh() {
+	a.trayMu.Lock()
+	// Already running? Don't spawn another ticker.
+	if a.trayRefreshCancel != nil {
+		a.trayMu.Unlock()
+		return
+	}
+	ctx, cancel := context.WithCancel(a.ctx)
+	a.trayRefreshCancel = cancel
+	a.trayMu.Unlock()
+
+	go func() {
+		ticker := time.NewTicker(1 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				// Only refresh if VPN is connected.
+				if a.manager != nil && a.manager.Running() {
+					a.refreshTrayStatus()
+				} else {
+					// Disconnected; stop the ticker.
+					a.stopTrayRefresh()
+					return
+				}
+			}
+		}
+	}()
+}
+
+// stopTrayRefresh stops the background tray tooltip refresher.
+func (a *App) stopTrayRefresh() {
+	a.trayMu.Lock()
+	if a.trayRefreshCancel != nil {
+		a.trayRefreshCancel()
+		a.trayRefreshCancel = nil
+	}
+	a.trayMu.Unlock()
 }
