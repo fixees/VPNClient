@@ -813,19 +813,35 @@ func (a *App) GenerateSubscriptionQR(name string) (string, error) {
 	if subURL == "" {
 		return "", fmt.Errorf("profile %q has no subscription URL", name)
 	}
-	
+
 	// Generate QR code as PNG (256x256 is a good size for screen display).
 	png, err := qrcode.Encode(subURL, qrcode.Medium, 256)
 	if err != nil {
 		return "", fmt.Errorf("generate QR: %w", err)
 	}
-	
+
 	// Return as data URI (base64-encoded PNG).
 	encoded := "data:image/png;base64," + base64.StdEncoding.EncodeToString(png)
 	if a.log != nil {
 		a.log.Info("generated QR for profile=%s url_len=%d", name, len(subURL))
 	}
 	return encoded, nil
+}
+
+// CopySubscriptionURL copies the subscription URL of a profile to the clipboard.
+func (a *App) CopySubscriptionURL(name string) error {
+	p, err := a.store.Get(name)
+	if err != nil {
+		return err
+	}
+	url := strings.TrimSpace(p.SubscriptionURL)
+	if url == "" {
+		return fmt.Errorf("профиль %q не имеет ссылки на подписку", name)
+	}
+	if a.ctx == nil {
+		return fmt.Errorf("app context not available")
+	}
+	return runtime.ClipboardSetText(a.ctx, url)
 }
 
 func (a *App) RemoveProfile(name string) error {

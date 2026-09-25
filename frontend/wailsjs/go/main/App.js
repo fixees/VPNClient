@@ -21,6 +21,7 @@ export async function SyncAllSubscriptions() { return 0 }
 export async function GetSubscriptionInfo() { return {} }
 export async function RemoveProfile() { return null }
 export async function SetActiveProfile() { return null }
+export async function CopySubscriptionURL() { return null }
 export async function Connect() { return null }
 export async function Disconnect() { return null }
 export async function ToggleConnect() { return null }

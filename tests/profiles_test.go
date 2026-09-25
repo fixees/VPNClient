@@ -76,3 +76,54 @@ func TestProfilesSettingsRoundTrip(t *testing.T) {
 		t.Fatalf("unexpected settings: %+v", loaded)
 	}
 }
+
+func TestProfilesCopySubscriptionURL(t *testing.T) {
+	store := profiles.NewStore(filepath.Join(t.TempDir(), "profiles.json"))
+
+	// Test profile with subscription URL
+	err := store.Upsert(profiles.Profile{
+		Name:            "TestSub",
+		SubscriptionURL: "https://example.com/sub?token=abc123",
+		Proxies: []profiles.ProxyNode{
+			{"name": "proxy-1", "type": "ss", "server": "example.com", "port": 443},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Upsert: %v", err)
+	}
+
+	// Test profile without subscription URL
+	err = store.Upsert(profiles.Profile{
+		Name: "TestLocal",
+		Proxies: []profiles.ProxyNode{
+			{"name": "proxy-2", "type": "ss", "server": "example.com", "port": 443},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Upsert: %v", err)
+	}
+
+	// Test that profile with subscription URL can be retrieved
+	p, err := store.Get("TestSub")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if p.SubscriptionURL != "https://example.com/sub?token=abc123" {
+		t.Fatalf("unexpected subscription URL: %s", p.SubscriptionURL)
+	}
+
+	// Test that profile without subscription URL returns empty
+	p2, err := store.Get("TestLocal")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if p2.SubscriptionURL != "" {
+		t.Fatalf("expected empty subscription URL, got: %s", p2.SubscriptionURL)
+	}
+
+	// Test that missing profile returns error
+	_, err = store.Get("NonExistent")
+	if err == nil {
+		t.Fatal("expected error for non-existent profile")
+	}
+}
