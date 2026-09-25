@@ -818,7 +818,7 @@ function renderSettingsGeneral(s, v) {
       <div class="panel">
         <div class="panel-title">Общие</div>
         ${switchRow('autostart', s.autostart, 'Автозапуск', 'Запускать VPN вместе с Windows')}
-        ${switchRow('closeToTray', s.closeToTray, 'Сворачивать в трей', 'Крестик скрывает окно, а не закрывает программу')}
+        ${switchRow('closeToTray', s.closeToTray, 'Сворачивать в трей', 'Крестик скрывает окно, VPN продолжает работать. Полный выход — «Выход» в трее (иначе mihomo может остаться в системе)')}
         ${switchRow('autoReconnect', s.autoReconnect, 'Автопереподключение', 'Самим восстановить связь, если VPN оборвался')}
         ${switchRow('killSwitch', s.killSwitch, 'Блокировка без VPN', 'Без VPN интернет будет недоступен')}
         ${switchRow('dnsLeakProtection', s.dnsLeakProtection, 'Защита DNS', 'Не отдавать запросы к сайтам мимо VPN')}
@@ -1065,8 +1065,8 @@ function renderSettingsRouting(s) {
       ${renderAppRoutePanel(s)}
       <div class="panel">
         <div class="panel-title">Свои правила для сайтов</div>
-        ${switchRow('routeWhitelist', !!s.routeWhitelist, 'Только перечисленные сайты', 'Всё, чего нет в списках ниже, будет заблокировано')}
-        <p class="muted rules-hint">По одному адресу в строке: сайт (example.com), подсеть (192.168.0.0/16) или шаблон. Сначала действует «Блок», потом «Без VPN», потом «Через VPN»${s.routeWhitelist ? ', остальное закрыто' : ', затем правило страны выше'}. Вместе с режимом «Приложения» доменные списки тоже работают (по SNI) — например Cursor через VPN по списку сайтов, даже если самого Cursor.exe нет в приложениях.</p>
+        ${switchRow('routeWhitelist', !!s.routeWhitelist, 'Только перечисленные сайты', 'Всё, чего нет в списках ниже, пойдёт без VPN')}
+		<p class="muted rules-hint">По одному адресу в строке: сайт (example.com), подсеть (192.168.0.0/16) или шаблон. Порядок: «Блок» → «Без VPN» → приложения → «Через VPN»${s.routeWhitelist ? ' → остальное без VPN' : ''}. Для Cursor: API-домены в «Через VPN», CDN/загрузки в «Без VPN»; если Cursor.exe в приложениях — весь его трафик (включая хелперы) идёт в VPN, кроме доменов из «Без VPN».</p>
         <label class="field">Блокировать
           <textarea name="routeBlock" rows="5" placeholder="ads.example.com&#10;tracker.example.com">${escapeHtml(s.routeBlock || '')}</textarea>
         </label>
@@ -1905,6 +1905,39 @@ async function boot() {
         if (atBottom) el.scrollTop = el.scrollHeight
       }
     }
+    if (state.view === 'connections') {
+      patchConnectionsLive()
+    }
+  }
+
+  function patchConnectionsLive() {
+    const panel = content.querySelector('.connections-panel')
+    if (!panel) {
+      // View may still show the disconnected stub — full paint once status flips.
+      paintContent({ force: true })
+      return
+    }
+    const tmp = document.createElement('div')
+    tmp.innerHTML = renderConnections(state)
+    const nextPanel = tmp.querySelector('.connections-panel')
+    if (!nextPanel) {
+      panel.replaceWith(tmp.firstElementChild || tmp)
+      return
+    }
+    // Prefer surgical updates so search focus/caret survives soft refresh.
+    const list = panel.querySelector('.connections-list')
+    const summary = panel.querySelector('.connections-summary')
+    const nextList = nextPanel.querySelector('.connections-list')
+    const nextSummary = nextPanel.querySelector('.connections-summary')
+    if (list && nextList && summary && nextSummary) {
+      const scrollTop = list.scrollTop
+      summary.replaceWith(nextSummary)
+      list.replaceWith(nextList)
+      const newList = panel.querySelector('.connections-list')
+      if (newList) newList.scrollTop = scrollTop
+      return
+    }
+    panel.replaceWith(nextPanel)
   }
 
   async function loadLogs() {
