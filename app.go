@@ -204,6 +204,10 @@ func (a *App) shutdown(ctx context.Context) {
 		a.health.Stop()
 	}
 	_ = a.Disconnect()
+	// Disconnect already reaps; call again unlocked in case manager was nil earlier.
+	a.mu.Lock()
+	a.reapOrphanCoreLocked()
+	a.mu.Unlock()
 	if a.log != nil {
 		a.log.Info("shutdown")
 		_ = a.log.Close()
@@ -728,9 +732,15 @@ func (a *App) buildInput(profile profiles.Profile) config.BuildInput {
 	in.Profile = profile
 	in.ProxyGroup = a.proxyGroup()
 
+	running, _ := winutil.ListRunningApps()
+	hints := make([]config.AppPathHint, 0, len(running))
+	for _, r := range running {
+		hints = append(hints, config.AppPathHint{Name: r.Name, Path: r.Path})
+	}
+	in.AppInstallDirs = config.CollectAppInstallDirs(in.AppRouteList, hints)
+
 	origApps := config.ParseAppList(in.AppRouteList)
-	apps, _ := winutil.ListRunningApps()
-	findings := compat.DetectDefault(apps, a.compatRouteContext(in.AppRouteMode, in.AppRouteList, in.RouteProxy))
+	findings := compat.DetectDefault(running, a.compatRouteContext(in.AppRouteMode, in.AppRouteList, in.RouteProxy))
 	a.compatExcludeKey = compat.ExclusionKey(findings)
 
 	excludeApps := compat.SuggestDirectApps(findings)
@@ -742,6 +752,7 @@ func (a *App) buildInput(profile profiles.Profile) config.BuildInput {
 		adjusted := compat.RemoveAppsFromList(in.AppRouteList, excludeApps)
 		if adjusted != in.AppRouteList {
 			in.AppRouteList = adjusted
+			in.AppInstallDirs = config.CollectAppInstallDirs(in.AppRouteList, hints)
 			if a.log != nil {
 				title := "DPI tool"
 				if len(findings) > 0 && findings[0].Title != "" {
@@ -1126,8 +1137,28 @@ func (a *App) Disconnect() error {
 	if a.manager != nil {
 		err = a.manager.Stop()
 	}
+	// Belt-and-suspenders: reap any leftover core even if Stop missed it
+	// (nested-job limits, crash mid-stop, duplicate launches).
+	a.reapOrphanCoreLocked()
 	a.refreshTrayStatus()
 	return err
+}
+
+// reapOrphanCoreLocked kills leftover mihomo.exe for our install path.
+// Caller must hold a.mu (or be in shutdown where races are acceptable).
+func (a *App) reapOrphanCoreLocked() {
+	if a.paths == nil {
+		return
+	}
+	coreBin := a.paths.CoreBinary()
+	n, killErr := winutil.KillProcessesWithImagePath(coreBin)
+	if a.log != nil {
+		if killErr != nil {
+			a.log.Warn("reap orphan core: %v", killErr)
+		} else if n > 0 {
+			a.log.Info("reaped %d orphan core process(es)", n)
+		}
+	}
 }
 
 func (a *App) cleanupNetwork() error {
@@ -1952,9 +1983,12 @@ func (a *App) HideWindow() {
 	}
 }
 
-// QuitApp disconnects and exits.
+// QuitApp disconnects, reaps the core, and exits.
 func (a *App) QuitApp() {
 	_ = a.Disconnect()
+	a.mu.Lock()
+	a.reapOrphanCoreLocked()
+	a.mu.Unlock()
 	if a.ctx != nil {
 		runtime.Quit(a.ctx)
 	}

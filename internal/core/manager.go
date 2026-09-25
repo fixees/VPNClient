@@ -194,7 +194,10 @@ func (r *execRunner) Start(bin string, args []string, workDir string) error {
 		return err
 	}
 	// Kill mihomo when the UI process dies (Task Manager / crash).
-	_ = winutil.AssignProcessToChildKillJob(cmd.Process.Pid)
+	if err := winutil.AssignProcessToChildKillJob(cmd.Process.Pid); err != nil {
+		// Nested jobs can fail on some Windows setups; Disconnect still force-reaps.
+		fmt.Fprintf(logFile, "job assign pid=%d: %v\n", cmd.Process.Pid, err)
+	}
 
 	r.mu.Lock()
 	r.cmd = cmd
