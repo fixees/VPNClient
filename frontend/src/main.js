@@ -25,6 +25,7 @@ const icons = {
   download: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"/><path d="m7.5 11.5 4.5 4.5 4.5-4.5"/><path d="M5 19.5h14"/></svg>`,
   pause: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M8 5.5v13M16 5.5v13"/></svg>`,
   play: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5.5v13l11-6.5z"/></svg>`,
+  copy: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`,
 }
 
 const mock = {
@@ -1066,6 +1067,19 @@ function renderSettingsInbound(s) {
         </label>
         ${switchRow('useSystemProxy', s.useSystemProxy, 'Системный прокси', 'Если «весь трафик» выключен — настроить прокси Windows')}
       </div>
+      <div class="panel" id="proxy-endpoints-panel">
+        <div class="panel-title">Адрес прокси</div>
+        <p class="settings-note">Адреса для подключения других устройств или настройки терминалов.</p>
+        <div class="proxy-address-row">
+          <span class="proxy-address-label">Локальный:</span>
+          <code class="proxy-address-value" id="proxy-loopback">Загрузка…</code>
+          <button type="button" class="icon-ghost" data-copy-proxy="loopback" title="Копировать">${icons.copy}</button>
+        </div>
+        <div id="proxy-lan-addresses"></div>
+        <div style="margin-top:12px;">
+          <button type="button" class="ghost" data-copy-proxy="powershell" style="width:100%;">Копировать для PowerShell</button>
+        </div>
+      </div>
     </form>
   `
 }
@@ -1719,6 +1733,41 @@ async function boot() {
     enhanceSelects(content)
     paintChrome()
     if (state.message) showToast(state.message, state.messageOk)
+    // Load proxy endpoints if we're on the inbound settings page
+    if (state.view === 'settings' && state.settingsSection === 'inbound') {
+      loadProxyEndpoints().catch(() => {})
+    }
+  }
+
+  async function loadProxyEndpoints() {
+    try {
+      const data = await bridge.GetProxyEndpoints()
+      const loopbackEl = document.getElementById('proxy-loopback')
+      const lanContainer = document.getElementById('proxy-lan-addresses')
+      
+      if (loopbackEl) {
+        loopbackEl.textContent = data.loopback || '127.0.0.1:7890'
+      }
+      
+      if (lanContainer) {
+        if (data.allowLan && data.lan && data.lan.length > 0) {
+          lanContainer.innerHTML = data.lan.map((addr, idx) => `
+            <div class="proxy-address-row">
+              <span class="proxy-address-label">${idx === 0 ? 'LAN:' : ''}</span>
+              <code class="proxy-address-value">${escapeHtml(addr)}</code>
+              <button type="button" class="icon-ghost" data-copy-proxy="lan" title="Копировать">${icons.copy}</button>
+            </div>
+          `).join('')
+        } else if (data.allowLan) {
+          lanContainer.innerHTML = '<p class="muted" style="margin:8px 0">Не найдено LAN-адресов</p>'
+        } else {
+          lanContainer.innerHTML = '<p class="muted" style="margin:8px 0">Включите «Доступ из домашней сети» для LAN-адресов</p>'
+        }
+      }
+    } catch (err) {
+      const loopbackEl = document.getElementById('proxy-loopback')
+      if (loopbackEl) loopbackEl.textContent = 'Ошибка'
+    }
   }
 
   async function loadData({ soft = false } = {}) {
@@ -2129,6 +2178,18 @@ async function boot() {
         showToast('Устанавливаю обновление…', true)
         await bridge.ApplyUpdate(state.lastZip)
         showToast('Обновление установлено, перезапуск…', true)
+        return
+      }
+      // Handle proxy address copying
+      const copyProxy = e.target.closest('[data-copy-proxy]')
+      if (copyProxy) {
+        const kind = copyProxy.getAttribute('data-copy-proxy')
+        try {
+          await bridge.CopyProxyEndpoint(kind)
+          showToast('Адрес скопирован', true)
+        } catch (err) {
+          showToast(friendlyError(err), false)
+        }
         return
       }
       if (profile) {

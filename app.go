@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"sort"
@@ -1783,4 +1784,133 @@ func (a *App) ExportLogs(content string) error {
 		path += ".txt"
 	}
 	return os.WriteFile(path, []byte(content), 0o600)
+}
+
+// GetProxyEndpoints returns proxy address information for LAN sharing and terminal use.
+func (a *App) GetProxyEndpoints() map[string]any {
+	a.mu.Lock()
+	port := defaults.MixedPort
+	allowLan := false
+	if a.settings != nil {
+		if a.settings.MixedPort > 0 {
+			port = a.settings.MixedPort
+		}
+		allowLan = a.settings.AllowLAN
+	}
+	a.mu.Unlock()
+
+	loopback := fmt.Sprintf("127.0.0.1:%d", port)
+	lanAddrs := getLANAddresses(port)
+
+	return map[string]any{
+		"mixedPort": port,
+		"allowLan":  allowLan,
+		"loopback":  loopback,
+		"lan":       lanAddrs,
+	}
+}
+
+// CopyProxyEndpoint copies a proxy address or environment snippet to the clipboard.
+// kind: loopback, lan, powershell, cmd
+func (a *App) CopyProxyEndpoint(kind string) error {
+	if a.ctx == nil {
+		return fmt.Errorf("приложение ещё не готово")
+	}
+
+	a.mu.Lock()
+	port := defaults.MixedPort
+	allowLan := false
+	if a.settings != nil {
+		if a.settings.MixedPort > 0 {
+			port = a.settings.MixedPort
+		}
+		allowLan = a.settings.AllowLAN
+	}
+	a.mu.Unlock()
+
+	var text string
+	switch strings.ToLower(strings.TrimSpace(kind)) {
+	case "loopback":
+		text = fmt.Sprintf("127.0.0.1:%d", port)
+	case "lan":
+		if !allowLan {
+			return fmt.Errorf("доступ из сети отключён — включите «Доступ из домашней сети»")
+		}
+		lanAddrs := getLANAddresses(port)
+		if len(lanAddrs) == 0 {
+			return fmt.Errorf("не найден локальный IP-адрес")
+		}
+		text = lanAddrs[0]
+	case "powershell":
+		proxyURL := fmt.Sprintf("http://127.0.0.1:%d", port)
+		text = fmt.Sprintf("$env:HTTP_PROXY=\"%s\"\n$env:HTTPS_PROXY=\"%s\"\n$env:ALL_PROXY=\"%s\"", proxyURL, proxyURL, proxyURL)
+	case "cmd":
+		proxyURL := fmt.Sprintf("http://127.0.0.1:%d", port)
+		text = fmt.Sprintf("set HTTP_PROXY=%s\nset HTTPS_PROXY=%s\nset ALL_PROXY=%s", proxyURL, proxyURL, proxyURL)
+	default:
+		return fmt.Errorf("неизвестный тип: %q", kind)
+	}
+
+	return runtime.ClipboardSetText(a.ctx, text)
+}
+
+// getLANAddresses returns primary private IPv4 addresses with port suffix.
+func getLANAddresses(port int) []string {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return []string{}
+	}
+
+	var addrs []string
+	for _, iface := range ifaces {
+		// Skip loopback and down interfaces
+		if iface.Flags&net.FlagLoopback != 0 || iface.Flags&net.FlagUp == 0 {
+			continue
+		}
+
+		ifaceAddrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+
+		for _, addr := range ifaceAddrs {
+			ipNet, ok := addr.(*net.IPNet)
+			if !ok {
+				continue
+			}
+			ip := ipNet.IP.To4()
+			if ip == nil {
+				continue // Skip IPv6
+			}
+			if ip.IsLoopback() || ip.IsLinkLocalUnicast() {
+				continue
+			}
+			// Prefer common private ranges
+			if isPrivateIP(ip) {
+				addrs = append(addrs, fmt.Sprintf("%s:%d", ip.String(), port))
+			}
+		}
+	}
+
+	return addrs
+}
+
+// isPrivateIP checks if IP is in private ranges (RFC1918 + RFC4193).
+func isPrivateIP(ip net.IP) bool {
+	if ip == nil {
+		return false
+	}
+	// 10.0.0.0/8
+	if ip[0] == 10 {
+		return true
+	}
+	// 172.16.0.0/12
+	if ip[0] == 172 && ip[1] >= 16 && ip[1] <= 31 {
+		return true
+	}
+	// 192.168.0.0/16
+	if ip[0] == 192 && ip[1] == 168 {
+		return true
+	}
+	return false
 }
