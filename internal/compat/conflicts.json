@@ -44,8 +44,8 @@
         ]
       },
       "when_overlap": {
-        "severity": "warn_and_prefer_direct",
-        "message": "Обнаружен zapret (WinDivert). Он сам обходит блокировки Discord/YouTube на уровне пакетов. Если пустить эти программы через VPN, zapret и TUN будут драться за трафик — Discord часто не запускается. Оставьте их без VPN (DIRECT), а через VPN гоняйте остальное."
+        "severity": "warn",
+        "message": "Обнаружен zapret (WinDivert). Пока включён VPN с TUN, Discord всё равно проходит через TUN — даже в режиме DIRECT (в соединениях видно «Tun»). Zapret на этом пути не работает. Выберите одно: 1) выключите VPN и пользуйтесь zapret; 2) оставьте VPN и пустите Discord через VPN (в белый список приложений / «Через VPN»), zapret для него не нужен; 3) не комбинируйте TUN+zapret+Discord одновременно."
       }
     },
     {
