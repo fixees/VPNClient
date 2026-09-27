@@ -27,6 +27,7 @@ type ProcessRunner interface {
 	// Stop attempts a graceful shutdown, then force-kills after grace.
 	Stop(grace time.Duration) error
 	Running() bool
+	PID() int // returns the process ID (0 if not started)
 }
 
 // Options configures the mihomo process manager.
@@ -41,6 +42,7 @@ type Options struct {
 	Runner        ProcessRunner
 	ReadyTimeout  time.Duration
 	StopGrace     time.Duration
+	PIDTracker    winutil.PIDTrackerInterface // optional: tracks core PID for orphan cleanup
 }
 
 // Manager owns the mihomo child process lifecycle.
@@ -48,6 +50,7 @@ type Manager struct {
 	mu      sync.Mutex
 	opts    Options
 	running bool
+	corePID int // last started core process PID
 }
 
 func NewManager(opts Options) *Manager {
@@ -112,6 +115,13 @@ func (m *Manager) Start(configYAML []byte) error {
 		return fmt.Errorf("start mihomo: %w", err)
 	}
 	m.running = true
+	// Track the PID for orphan cleanup on crash/hard-kill.
+	if pid := runner.PID(); pid > 0 {
+		m.corePID = pid
+		if m.opts.PIDTracker != nil {
+			_ = m.opts.PIDTracker.RecordCorePID(pid)
+		}
+	}
 	m.mu.Unlock()
 
 	// Wait for controller outside the lock so Stop/Running stay responsive.
@@ -164,7 +174,19 @@ func (m *Manager) Stop() error {
 	}
 	err := m.opts.Runner.Stop(m.opts.StopGrace)
 	m.running = false
+	m.corePID = 0
+	// Clear PID file on clean stop.
+	if m.opts.PIDTracker != nil {
+		_ = m.opts.PIDTracker.Clear()
+	}
 	return err
+}
+
+// CorePID returns the last started core process PID (0 if not running).
+func (m *Manager) CorePID() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.corePID
 }
 
 type execRunner struct {
@@ -277,4 +299,13 @@ func (r *execRunner) Running() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.alive && r.cmd != nil && r.cmd.Process != nil
+}
+
+func (r *execRunner) PID() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.cmd != nil && r.cmd.Process != nil {
+		return r.cmd.Process.Pid
+	}
+	return 0
 }

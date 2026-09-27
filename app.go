@@ -51,6 +51,7 @@ type App struct {
 
 	killSwitch *winutil.KillSwitch
 	dnsGuard   *winutil.DNSLeakGuard
+	pidTracker *winutil.PIDTracker
 	health     *health.Checker
 	subs       *subscription.Fetcher
 	scheduler  *subscription.Scheduler
@@ -86,7 +87,8 @@ type App struct {
 
 	compatExcludeKey string // last applied PreferDirect exclusion fingerprint
 
-	mu sync.Mutex
+	shutdownOnce sync.Once // ensures QuitApp cleanup runs once
+	mu           sync.Mutex
 }
 
 func NewApp() *App {
@@ -113,6 +115,10 @@ func (a *App) startup(ctx context.Context) {
 		a.log = lg
 		a.log.Info("starting %s %s", defaults.ProductName, version)
 	}
+
+	// PID tracker for orphan detection (Windows only, no-op elsewhere).
+	pidFile := winutil.FormatPIDFile(a.paths.DataDir())
+	a.pidTracker = winutil.NewPIDTracker(pidFile)
 
 	// Unpack embedded mihomo + geo into AppData (single-exe distribution).
 	if err := a.ensureBundledCore(); err != nil {
@@ -147,6 +153,7 @@ func (a *App) startup(ctx context.Context) {
 		Secret:        a.settings.Secret,
 		MixedPort:     a.settings.MixedPort,
 		API:           a.api,
+		PIDTracker:    a.pidTracker,
 	})
 
 	interval := time.Duration(a.settings.HealthIntervalSec) * time.Second
@@ -177,7 +184,7 @@ func (a *App) startup(ctx context.Context) {
 	}
 	a.startTray()
 
-	// Recover from crash / hard power-off: sticky firewall rules + orphan WinINET proxy.
+	// Recover from crash / hard power-off: sticky firewall rules + orphan WinINET proxy + orphan core.
 	a.recoverOrphanNetworkState()
 
 	if err := winutil.RegisterURLProtocols(); err != nil {
@@ -204,12 +211,8 @@ func (a *App) shutdown(ctx context.Context) {
 		a.health.Stop()
 	}
 	_ = a.Disconnect()
-	// Disconnect already reaps; call again unlocked in case manager was nil earlier.
-	a.mu.Lock()
-	a.reapOrphanCoreLocked()
-	a.mu.Unlock()
 	if a.log != nil {
-		a.log.Info("shutdown")
+		a.log.Info("Wails shutdown hook complete")
 		_ = a.log.Close()
 	}
 }
@@ -1136,29 +1139,20 @@ func (a *App) Disconnect() error {
 	var err error
 	if a.manager != nil {
 		err = a.manager.Stop()
-	}
-	// Belt-and-suspenders: reap any leftover core even if Stop missed it
-	// (nested-job limits, crash mid-stop, duplicate launches).
-	a.reapOrphanCoreLocked()
-	a.refreshTrayStatus()
-	return err
-}
-
-// reapOrphanCoreLocked kills leftover mihomo.exe for our install path.
-// Caller must hold a.mu (or be in shutdown where races are acceptable).
-func (a *App) reapOrphanCoreLocked() {
-	if a.paths == nil {
-		return
-	}
-	coreBin := a.paths.CoreBinary()
-	n, killErr := winutil.KillProcessesWithImagePath(coreBin)
-	if a.log != nil {
-		if killErr != nil {
-			a.log.Warn("reap orphan core: %v", killErr)
-		} else if n > 0 {
-			a.log.Info("reaped %d orphan core process(es)", n)
+		// Wait for process to actually exit (up to 2 seconds).
+		deadline := time.Now().Add(2 * time.Second)
+		for time.Now().Before(deadline) {
+			corePID := a.manager.CorePID()
+			if corePID == 0 || !winutil.IsProcessAlive(corePID) {
+				break
+			}
+			time.Sleep(50 * time.Millisecond)
 		}
 	}
+	// Belt-and-suspenders: force-reap any leftover core if Stop failed or timeout.
+	a.forceReapCoreLocked()
+	a.refreshTrayStatus()
+	return err
 }
 
 func (a *App) cleanupNetwork() error {
@@ -1228,9 +1222,10 @@ func (a *App) clearProxySnapshotFile() error {
 	return nil
 }
 
-// recoverOrphanNetworkState clears sticky firewall rules and leftover system proxy
-// after a crash / hard power-off (Hiddify-class #2306 / #2323).
+// recoverOrphanNetworkState clears sticky firewall rules, leftover system proxy,
+// and orphan mihomo processes after a crash / hard power-off.
 func (a *App) recoverOrphanNetworkState() {
+	// 1. Clear firewall rules (kill switch + DNS leak protection).
 	if a.killSwitch != nil {
 		if err := a.killSwitch.Disable(); err != nil && a.log != nil {
 			a.log.Warn("startup kill-switch cleanup: %v", err)
@@ -1242,6 +1237,7 @@ func (a *App) recoverOrphanNetworkState() {
 		}
 	}
 
+	// 2. Restore system proxy from crash snapshot if present.
 	if snap, ok := a.loadProxySnapshot(); ok {
 		if err := winutil.RestoreSystemProxy(snap.Snap); err != nil {
 			if a.log != nil {
@@ -1253,6 +1249,7 @@ func (a *App) recoverOrphanNetworkState() {
 		_ = a.clearProxySnapshotFile()
 	}
 
+	// 3. Clear orphan system proxy if it still points at our port.
 	port := defaults.MixedPort
 	if a.settings != nil && a.settings.MixedPort > 0 {
 		port = a.settings.MixedPort
@@ -1265,13 +1262,36 @@ func (a *App) recoverOrphanNetworkState() {
 		a.log.Info("cleared orphan system proxy 127.0.0.1:%d", port)
 	}
 
-	// Reap mihomo left behind after Task Manager kill of the UI.
+	// 4. Kill orphan mihomo core processes tracked by PID file.
+	if a.pidTracker != nil {
+		corePID, mainPID, isOrphan := a.pidTracker.LoadOrphans()
+		if isOrphan && corePID > 0 {
+			coreBin := a.paths.CoreBinary()
+			// Verify the PID's image path matches our core before killing.
+			imagePath := winutil.GetProcessImagePath(corePID)
+			wantPath := strings.ToLower(filepath.Clean(coreBin))
+			gotPath := strings.ToLower(filepath.Clean(imagePath))
+			if gotPath == wantPath || gotPath == "" {
+				if err := winutil.KillPID(corePID); err != nil && a.log != nil {
+					a.log.Warn("startup orphan core PID=%d: %v", corePID, err)
+				} else if a.log != nil {
+					a.log.Info("killed orphan core PID=%d (main=%d was killed)", corePID, mainPID)
+				}
+			} else if a.log != nil {
+				a.log.Warn("PID %d image mismatch: want=%s got=%s, skipping kill", corePID, wantPath, gotPath)
+			}
+		}
+		_ = a.pidTracker.Clear()
+	}
+
+	// 5. Final fallback: reap any mihomo at our core binary path (image-based scan).
+	// This catches cases where PID file was missing or corrupted.
 	if a.paths != nil {
 		coreBin := a.paths.CoreBinary()
 		if n, err := winutil.KillProcessesWithImagePath(coreBin); err != nil && a.log != nil {
-			a.log.Warn("startup orphan core cleanup: %v", err)
+			a.log.Warn("startup orphan core image-based cleanup: %v", err)
 		} else if n > 0 && a.log != nil {
-			a.log.Info("killed %d orphan core process(es) at %s", n, coreBin)
+			a.log.Info("killed %d orphan core process(es) via image scan at %s", n, coreBin)
 		}
 	}
 }
@@ -1983,14 +2003,80 @@ func (a *App) HideWindow() {
 	}
 }
 
-// QuitApp disconnects, reaps the core, and exits.
+// QuitApp performs orderly shutdown: disconnect VPN, cleanup network state,
+// reap core process, then exit the application.
 func (a *App) QuitApp() {
-	_ = a.Disconnect()
+	a.shutdownOnce.Do(func() {
+		a.performShutdown()
+	})
+}
+
+func (a *App) performShutdown() {
+	if a.log != nil {
+		a.log.Info("shutdown initiated")
+	}
+
+	// 1. Disconnect VPN with bounded timeout (includes core stop + network cleanup).
+	done := make(chan struct{})
+	go func() {
+		_ = a.Disconnect()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		if a.log != nil {
+			a.log.Warn("Disconnect timeout, forcing cleanup")
+		}
+	}
+
+	// 2. Force-reap core process if still alive (job object might have failed).
 	a.mu.Lock()
-	a.reapOrphanCoreLocked()
+	a.forceReapCoreLocked()
 	a.mu.Unlock()
+
+	// 3. Clear PID tracking file (clean exit).
+	if a.pidTracker != nil {
+		_ = a.pidTracker.Clear()
+	}
+
+	// 4. Close log file.
+	if a.log != nil {
+		a.log.Info("shutdown complete")
+		_ = a.log.Close()
+	}
+
+	// 5. Exit the application (Wails runtime.Quit + os.Exit for certainty).
 	if a.ctx != nil {
 		runtime.Quit(a.ctx)
+	}
+	// Give runtime.Quit a moment to coordinate, then hard exit.
+	time.Sleep(300 * time.Millisecond)
+	os.Exit(0)
+}
+
+// forceReapCoreLocked kills the core process by PID and/or image path.
+// Caller must hold a.mu.
+func (a *App) forceReapCoreLocked() {
+	// Try tracked PID first.
+	if a.manager != nil {
+		corePID := a.manager.CorePID()
+		if corePID > 0 && winutil.IsProcessAlive(corePID) {
+			if err := winutil.KillPID(corePID); err != nil && a.log != nil {
+				a.log.Warn("force kill core PID=%d: %v", corePID, err)
+			} else if a.log != nil {
+				a.log.Info("force killed core PID=%d", corePID)
+			}
+		}
+	}
+	// Fallback: image-based scan (catches any we missed).
+	if a.paths != nil {
+		coreBin := a.paths.CoreBinary()
+		if n, err := winutil.KillProcessesWithImagePath(coreBin); err != nil && a.log != nil {
+			a.log.Warn("force reap core by image: %v", err)
+		} else if n > 0 && a.log != nil {
+			a.log.Info("force reaped %d core process(es)", n)
+		}
 	}
 }
 
