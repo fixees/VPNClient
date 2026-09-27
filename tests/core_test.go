@@ -73,6 +73,15 @@ func (r *fakeRunner) Running() bool {
 	return r.started
 }
 
+func (r *fakeRunner) PID() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.started {
+		return 99999
+	}
+	return 0
+}
+
 func TestCoreManagerStartStop(t *testing.T) {
 	tmp := t.TempDir()
 	bin := filepath.Join(tmp, "mihomo.exe")

@@ -77,8 +77,11 @@ func (a *App) onTrayReady() {
 				}
 				a.refreshTrayStatus()
 			case <-mQuit.ClickedCh:
-				systray.Quit()
+				// Quit from tray: perform full cleanup and force exit.
+				// Don't just call systray.Quit() — ensure our cleanup runs first.
 				a.QuitApp()
+				// QuitApp calls os.Exit(0), but if it doesn't, stop systray and return.
+				systray.Quit()
 				return
 			case <-a.ctx.Done():
 				systray.Quit()
