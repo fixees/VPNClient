@@ -110,6 +110,7 @@ type Settings struct {
 	AutoUpdateSubscriptions bool   `json:"autoUpdateSubscriptions"`
 	SubscriptionIntervalMin int    `json:"subscriptionIntervalMin"`
 	Autostart               bool   `json:"autostart"`
+	SilentAutostart         bool   `json:"silentAutostart"`
 	CloseToTray             bool   `json:"closeToTray"`
 	ProxyGroup              string `json:"proxyGroup"`
 	SelectedNode            string `json:"selectedNode"`
@@ -166,6 +167,7 @@ func DefaultSettings() *Settings {
 		AutoUpdateSubscriptions: true,
 		SubscriptionIntervalMin: defaults.DefaultSubIntervalMin,
 		Autostart:               false,
+		SilentAutostart:         true,
 		CloseToTray:             true,
 		ProxyGroup:              defaults.ProxyGroup,
 		SelectedNode:            "",

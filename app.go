@@ -1280,7 +1280,9 @@ func (a *App) recoverOrphanNetworkState() {
 func (a *App) autostartConnect() {
 	// Let Wails finish binding / tray before Connect (TUN + elevation already done).
 	time.Sleep(800 * time.Millisecond)
-	if a.ctx != nil && a.settings != nil && a.settings.CloseToTray {
+	// SilentAutostart uses StartHidden, so window is already hidden.
+	// Still hide here if silentAutostart is off but CloseToTray is on (legacy behavior).
+	if a.ctx != nil && a.settings != nil && !a.settings.SilentAutostart && a.settings.CloseToTray {
 		runtime.WindowHide(a.ctx)
 	}
 	a.mu.Lock()
