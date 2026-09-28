@@ -8,6 +8,8 @@ import (
 
 	"myinternetvpn/client/internal/deeplink"
 	"myinternetvpn/client/internal/defaults"
+	"myinternetvpn/client/internal/paths"
+	"myinternetvpn/client/internal/profiles"
 	"myinternetvpn/client/internal/winutil"
 
 	"github.com/wailsapp/wails/v2"
@@ -66,11 +68,22 @@ func main() {
 	app := NewApp()
 	app.SetStartupDeepLink(pendingLink)
 
+	// Determine if we should start hidden (silent autostart).
+	startHidden := false
+	if winutil.HasCLIFlag("--autostart") {
+		// Load settings to check silentAutostart preference.
+		settingsPath := paths.New().SettingsFile()
+		if settings, err := profiles.LoadSettings(settingsPath); err == nil && settings.SilentAutostart {
+			startHidden = true
+		}
+	}
+
 	err = wails.Run(&options.App{
 		Title:         defaults.WindowTitle,
 		Width:         1100,
 		Height:        720,
 		DisableResize: true,
+		StartHidden:   startHidden,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},

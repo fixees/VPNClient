@@ -36,7 +36,7 @@ const mock = {
     return { state: 'disconnected', activeProfile: '', mode: 'rule', speedUp: 0, speedDown: 0, appVersion: 'dev', subscriptionQuota: null, selectedNode: '' }
   },
   async GetSettings() {
-    return { mode: 'rule', tun: true, useSystemProxy: true, killSwitch: false, dnsLeakProtection: false, autoReconnect: true, autoUpdateSubscriptions: true, subscriptionIntervalMin: 360, autostart: false, closeToTray: true }
+    return { mode: 'rule', tun: true, useSystemProxy: true, killSwitch: false, dnsLeakProtection: false, autoReconnect: true, autoUpdateSubscriptions: true, subscriptionIntervalMin: 360, autostart: false, silentAutostart: true, closeToTray: true }
   },
   async SaveSettings() { return null },
   async ListProfiles() { return [] },
@@ -818,6 +818,7 @@ function renderSettingsGeneral(s, v) {
       <div class="panel">
         <div class="panel-title">Общие</div>
         ${switchRow('autostart', s.autostart, 'Автозапуск', 'Запускать VPN вместе с Windows')}
+        ${switchRow('silentAutostart', s.silentAutostart, 'Тихий автозапуск', 'При старте с Windows сразу в трей, без окна')}
         ${switchRow('closeToTray', s.closeToTray, 'Сворачивать в трей', 'Крестик скрывает окно, VPN продолжает работать. Полный выход — «Выход» в трее (иначе mihomo может остаться в системе)')}
         ${switchRow('autoReconnect', s.autoReconnect, 'Автопереподключение', 'Самим восстановить связь, если VPN оборвался')}
         ${switchRow('killSwitch', s.killSwitch, 'Блокировка без VPN', 'Без VPN интернет будет недоступен')}
@@ -1267,6 +1268,7 @@ function collectSettingsPatch(section, fd, prev) {
       return {
         ...base,
         autostart: on('autostart'),
+        silentAutostart: on('silentAutostart'),
         closeToTray: on('closeToTray'),
         autoReconnect: on('autoReconnect'),
         killSwitch: on('killSwitch'),
