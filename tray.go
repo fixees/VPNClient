@@ -40,6 +40,8 @@ func (a *App) onTrayReady() {
 	mModeDirect := mMode.AddSubMenuItem("Без VPN", "Прямое подключение")
 
 	systray.AddSeparator()
+	mRefreshSub := systray.AddMenuItem("Обновить подписку", "Обновить список серверов из подписки")
+	systray.AddSeparator()
 	mQuit := systray.AddMenuItem("Выйти", "Закрыть "+defaults.ProductName)
 
 	a.trayMu.Lock()
@@ -76,6 +78,8 @@ func (a *App) onTrayReady() {
 					a.log.Warn("tray set mode direct: %v", err)
 				}
 				a.refreshTrayStatus()
+			case <-mRefreshSub.ClickedCh:
+				go a.handleTrayRefreshSubscriptions()
 			case <-mQuit.ClickedCh:
 				systray.Quit()
 				a.QuitApp()
@@ -216,4 +220,30 @@ func (a *App) stopTrayRefresh() {
 		a.trayRefreshCancel = nil
 	}
 	a.trayMu.Unlock()
+}
+
+// handleTrayRefreshSubscriptions updates subscriptions from the tray without blocking the UI.
+func (a *App) handleTrayRefreshSubscriptions() {
+	a.setTrayTooltipSyncing()
+
+	n, err := a.SyncAllSubscriptions()
+
+	if err != nil && a.log != nil {
+		a.log.Warn("tray subscription refresh failed: updated=%d err=%v", n, err)
+	} else if a.log != nil {
+		a.log.Info("tray subscription refresh: updated=%d profiles", n)
+	}
+
+	a.refreshTrayStatus()
+}
+
+// setTrayTooltipSyncing briefly updates the tray tooltip to indicate syncing is in progress.
+func (a *App) setTrayTooltipSyncing() {
+	a.trayMu.Lock()
+	ready := a.trayReady
+	a.trayMu.Unlock()
+	if !ready {
+		return
+	}
+	systray.SetTooltip(defaults.ProductName + " — Обновление подписки…")
 }
