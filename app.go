@@ -57,10 +57,12 @@ type App struct {
 	proxySnap  winutil.SystemProxySnapshot
 	proxyOn    bool
 
-	ipMu      sync.Mutex
-	cachedIP  string
-	cachedAt  time.Time
-	cachedVia bool // fetched through mixed proxy
+	ipMu         sync.Mutex
+	cachedIP     string
+	cachedAt     time.Time
+	cachedVia    bool // fetched through mixed proxy
+	copyingIP    bool // true while a tray copy-IP operation is in flight
+	lastCopyIPAt time.Time
 
 	statusMu      sync.Mutex
 	statusCache   map[string]any
@@ -73,13 +75,15 @@ type App struct {
 	logClientSt os.FileInfo
 	logCoreSt   os.FileInfo
 
-	trayMu            sync.Mutex
-	trayReady         bool
-	trayToggle        *systray.MenuItem
-	trayRefreshCancel context.CancelFunc
-	trayModeRule      *systray.MenuItem
-	trayModeGlobal    *systray.MenuItem
-	trayModeDirect    *systray.MenuItem
+	trayMu              sync.Mutex
+	trayReady           bool
+	trayToggle          *systray.MenuItem
+	trayRefreshCancel   context.CancelFunc
+	trayModeRule        *systray.MenuItem
+	trayModeGlobal      *systray.MenuItem
+	trayModeDirect      *systray.MenuItem
+	trayFeedbackMsg     string
+	trayFeedbackExpires time.Time
 
 	startupDeepLink string
 	deeplinkMu      sync.Mutex
@@ -360,8 +364,8 @@ func (a *App) GetPublicIP() map[string]any {
 		ip := a.cachedIP
 		a.ipMu.Unlock()
 		return map[string]any{
-			"ip":      ip,
-			"masked":  netinfo.MaskIP(ip),
+			"ip":       ip,
+			"masked":   netinfo.MaskIP(ip),
 			"viaProxy": viaProxy,
 		}
 	}
@@ -372,10 +376,10 @@ func (a *App) GetPublicIP() map[string]any {
 	ip, err := netinfo.LookupPublicIP(ctx, mixed)
 	if err != nil || ip == "" {
 		return map[string]any{
-			"ip":      "",
-			"masked":  "-",
+			"ip":       "",
+			"masked":   "-",
 			"viaProxy": viaProxy,
-			"error":   fmt.Sprint(err),
+			"error":    fmt.Sprint(err),
 		}
 	}
 	a.ipMu.Lock()
@@ -1488,19 +1492,19 @@ func (a *App) ListConnections() []map[string]any {
 			chains = strings.Join(c.Chains, " → ")
 		}
 		out = append(out, map[string]any{
-			"id":       c.ID,
-			"host":     host,
-			"network":  network,
-			"type":     connType,
-			"sourceIP": sourceIP,
-			"destIP":   destIP,
-			"destPort": destPort,
-			"process":  process,
-			"upload":   c.Upload,
-			"download": c.Download,
-			"start":    c.Start,
-			"chains":   chains,
-			"rule":     c.Rule,
+			"id":          c.ID,
+			"host":        host,
+			"network":     network,
+			"type":        connType,
+			"sourceIP":    sourceIP,
+			"destIP":      destIP,
+			"destPort":    destPort,
+			"process":     process,
+			"upload":      c.Upload,
+			"download":    c.Download,
+			"start":       c.Start,
+			"chains":      chains,
+			"rule":        c.Rule,
 			"rulePayload": c.RulePayload,
 		})
 	}
@@ -2192,4 +2196,99 @@ func isPrivateIP(ip net.IP) bool {
 		return true
 	}
 	return false
+}
+
+// copyPublicIPFromTray fetches the current public IP and copies it to the clipboard.
+// Runs off the UI thread with timeout and feedback via tray tooltip.
+func (a *App) copyPublicIPFromTray() {
+	// Prevent overlapping requests (debounce rapid clicks).
+	a.ipMu.Lock()
+	if a.copyingIP {
+		a.ipMu.Unlock()
+		return
+	}
+	if time.Since(a.lastCopyIPAt) < 2*time.Second {
+		a.ipMu.Unlock()
+		return
+	}
+	a.copyingIP = true
+	a.lastCopyIPAt = time.Now()
+	a.ipMu.Unlock()
+
+	defer func() {
+		a.ipMu.Lock()
+		a.copyingIP = false
+		a.ipMu.Unlock()
+	}()
+
+	viaProxy := a.manager != nil && a.manager.Running()
+	mixed := 0
+	if viaProxy && a.settings != nil && a.settings.MixedPort > 0 {
+		mixed = a.settings.MixedPort
+	} else if viaProxy {
+		mixed = defaults.MixedPort
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+
+	ip, err := netinfo.LookupPublicIP(ctx, mixed)
+	if err != nil || ip == "" {
+		if a.log != nil {
+			a.log.Warn("tray copy IP: %v", err)
+		}
+		a.setTrayFeedback("Не удалось получить IP", 3*time.Second)
+		return
+	}
+
+	// Update cache so the UI can pick it up.
+	a.ipMu.Lock()
+	a.cachedIP = ip
+	a.cachedAt = time.Now()
+	a.cachedVia = viaProxy
+	a.ipMu.Unlock()
+
+	// Copy to clipboard using Wails runtime (requires app context).
+	if a.ctx == nil {
+		if a.log != nil {
+			a.log.Warn("tray copy IP: app context not available")
+		}
+		a.setTrayFeedback("Ошибка: контекст приложения", 3*time.Second)
+		return
+	}
+
+	if err := runtime.ClipboardSetText(a.ctx, ip); err != nil {
+		if a.log != nil {
+			a.log.Warn("tray copy IP clipboard: %v", err)
+		}
+		a.setTrayFeedback("Не удалось скопировать", 3*time.Second)
+		return
+	}
+
+	// Success feedback.
+	a.setTrayFeedback(fmt.Sprintf("IP скопирован: %s", ip), 4*time.Second)
+	if a.log != nil {
+		a.log.Info("tray copied IP: %s", ip)
+	}
+}
+
+// setTrayFeedback displays a temporary message in the tray tooltip.
+func (a *App) setTrayFeedback(msg string, duration time.Duration) {
+	a.trayMu.Lock()
+	a.trayFeedbackMsg = msg
+	a.trayFeedbackExpires = time.Now().Add(duration)
+	a.trayMu.Unlock()
+
+	a.refreshTrayStatus()
+
+	// Clear feedback after duration.
+	go func() {
+		time.Sleep(duration)
+		a.trayMu.Lock()
+		if time.Now().After(a.trayFeedbackExpires) {
+			a.trayFeedbackMsg = ""
+		}
+		a.trayMu.Unlock()
+		a.refreshTrayStatus()
+	}()
 }

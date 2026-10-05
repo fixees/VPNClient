@@ -31,6 +31,7 @@ func (a *App) onTrayReady() {
 
 	mShow := systray.AddMenuItem("Показать", "Открыть окно")
 	mToggle := systray.AddMenuItem("Подключить", "Подключить / отключить VPN")
+	mCopyIP := systray.AddMenuItem("Скопировать IP", "Скопировать текущий публичный IP-адрес в буфер обмена")
 	systray.AddSeparator()
 
 	// Mode submenu
@@ -61,6 +62,8 @@ func (a *App) onTrayReady() {
 					a.log.Warn("tray toggle: %v", err)
 				}
 				a.refreshTrayStatus()
+			case <-mCopyIP.ClickedCh:
+				go a.copyPublicIPFromTray()
 			case <-mModeRule.ClickedCh:
 				if err := a.SetMode("rule"); err != nil && a.log != nil {
 					a.log.Warn("tray set mode rule: %v", err)
@@ -99,42 +102,30 @@ func (a *App) refreshTrayStatus() {
 	modeRule := a.trayModeRule
 	modeGlobal := a.trayModeGlobal
 	modeDirect := a.trayModeDirect
+	feedbackMsg := a.trayFeedbackMsg
+	feedbackActive := feedbackMsg != "" && time.Now().Before(a.trayFeedbackExpires)
 	a.trayMu.Unlock()
 	if !ready {
+		return
+	}
+
+	// If feedback is active, show it instead of the normal tooltip.
+	if feedbackActive {
+		systray.SetTooltip(feedbackMsg)
+		// Still update toggle/mode items for consistency.
+		a.updateTrayItems(toggle, modeRule, modeGlobal, modeDirect)
 		return
 	}
 
 	connected := a.manager != nil && a.manager.Running()
 	profile := ""
 	node := ""
-	mode := ""
 	if a.settings != nil {
 		profile = a.settings.ActiveProfile
 		node = a.settings.SelectedNode
-		mode = a.settings.Mode
 	}
 
-	// Update mode checkmarks
-	if modeRule != nil && modeGlobal != nil && modeDirect != nil {
-		switch mode {
-		case "rule":
-			modeRule.Check()
-			modeGlobal.Uncheck()
-			modeDirect.Uncheck()
-		case "global":
-			modeRule.Uncheck()
-			modeGlobal.Check()
-			modeDirect.Uncheck()
-		case "direct":
-			modeRule.Uncheck()
-			modeGlobal.Uncheck()
-			modeDirect.Check()
-		default:
-			modeRule.Check()
-			modeGlobal.Uncheck()
-			modeDirect.Uncheck()
-		}
-	}
+	a.updateTrayItems(toggle, modeRule, modeGlobal, modeDirect)
 
 	if connected {
 		tip := defaults.ProductName + " — Подключено"
@@ -153,18 +144,10 @@ func (a *App) refreshTrayStatus() {
 		}
 
 		systray.SetTooltip(tip)
-		if toggle != nil {
-			toggle.SetTitle("Отключить")
-			toggle.SetTooltip(fmt.Sprintf("Отключить VPN (%s)", profileOrDash(profile)))
-		}
 		return
 	}
 
 	systray.SetTooltip(defaults.ProductName + " — Отключено")
-	if toggle != nil {
-		toggle.SetTitle("Подключить")
-		toggle.SetTooltip("Подключить VPN")
-	}
 }
 
 func profileOrDash(s string) string {
@@ -216,4 +199,48 @@ func (a *App) stopTrayRefresh() {
 		a.trayRefreshCancel = nil
 	}
 	a.trayMu.Unlock()
+}
+
+// updateTrayItems updates toggle button and mode checkmarks.
+func (a *App) updateTrayItems(toggle, modeRule, modeGlobal, modeDirect *systray.MenuItem) {
+	connected := a.manager != nil && a.manager.Running()
+	profile := ""
+	mode := ""
+	if a.settings != nil {
+		profile = a.settings.ActiveProfile
+		mode = a.settings.Mode
+	}
+
+	// Update mode checkmarks
+	if modeRule != nil && modeGlobal != nil && modeDirect != nil {
+		switch mode {
+		case "rule":
+			modeRule.Check()
+			modeGlobal.Uncheck()
+			modeDirect.Uncheck()
+		case "global":
+			modeRule.Uncheck()
+			modeGlobal.Check()
+			modeDirect.Uncheck()
+		case "direct":
+			modeRule.Uncheck()
+			modeGlobal.Uncheck()
+			modeDirect.Check()
+		default:
+			modeRule.Check()
+			modeGlobal.Uncheck()
+			modeDirect.Uncheck()
+		}
+	}
+
+	// Update toggle button title/tooltip
+	if toggle != nil {
+		if connected {
+			toggle.SetTitle("Отключить")
+			toggle.SetTooltip(fmt.Sprintf("Отключить VPN (%s)", profileOrDash(profile)))
+		} else {
+			toggle.SetTitle("Подключить")
+			toggle.SetTooltip("Подключить VPN")
+		}
+	}
 }
