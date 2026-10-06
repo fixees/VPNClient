@@ -254,6 +254,8 @@ func (a *App) GetStatus() map[string]any {
 	subURL := ""
 	lastSync := ""
 	expireUnix := int64(0)
+	profileWebPageURL := ""
+	supportURL := ""
 	if settings != nil && store != nil {
 		active = settings.ActiveProfile
 		if active != "" {
@@ -261,6 +263,8 @@ func (a *App) GetStatus() map[string]any {
 				subURL = p.SubscriptionURL
 				lastSync = p.LastSyncAt
 				expireUnix = p.Quota.ExpireUnix
+				profileWebPageURL = p.ProfileWebPageURL
+				supportURL = p.SupportURL
 				quota = map[string]any{
 					"upload":     p.Quota.Upload,
 					"download":   p.Quota.Download,
@@ -287,6 +291,8 @@ func (a *App) GetStatus() map[string]any {
 		"subscriptionQuota":      quota,
 		"subscriptionLastSync":   lastSync,
 		"subscriptionExpireUnix": expireUnix,
+		"profileWebPageURL":      profileWebPageURL,
+		"supportURL":             supportURL,
 		"isAdmin":                winutil.IsAdmin(),
 		"product":                defaults.ProductName,
 		"appVersion":             version,
@@ -831,6 +837,8 @@ func (a *App) ImportSubscription(name, note, rawURL string) error {
 		LastSyncAt:          time.Now().UTC().Format(time.RFC3339),
 		UpdateIntervalHours: res.UpdateIntervalHours,
 		ProviderTitle:       res.ProviderTitle,
+		ProfileWebPageURL:   res.ProfileWebPageURL,
+		SupportURL:          res.SupportURL,
 	}
 	if p.Note == "" && res.ProviderTitle != "" {
 		p.Note = res.ProviderTitle
@@ -863,6 +871,8 @@ func (a *App) SyncSubscription(name string) error {
 	if res.ProviderTitle != "" {
 		p.ProviderTitle = res.ProviderTitle
 	}
+	p.ProfileWebPageURL = res.ProfileWebPageURL
+	p.SupportURL = res.SupportURL
 	if err := a.UpsertProfile(p); err != nil {
 		return err
 	}
@@ -2192,4 +2202,34 @@ func isPrivateIP(ip net.IP) bool {
 		return true
 	}
 	return false
+}
+
+// OpenURL opens a URL in the user's default browser.
+// Validates the URL scheme again before opening (http/https/tg only).
+func (a *App) OpenURL(rawURL string) error {
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		return fmt.Errorf("URL is empty")
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid URL: %w", err)
+	}
+	scheme := strings.ToLower(u.Scheme)
+	if scheme != "http" && scheme != "https" && scheme != "tg" {
+		return fmt.Errorf("unsupported URL scheme: %q", u.Scheme)
+	}
+	if !u.IsAbs() {
+		return fmt.Errorf("URL must be absolute")
+	}
+	if a.ctx == nil {
+		return fmt.Errorf("app context not ready")
+	}
+	if err := runtime.BrowserOpenURL(a.ctx, rawURL); err != nil {
+		return fmt.Errorf("failed to open URL: %w", err)
+	}
+	if a.log != nil {
+		a.log.Info("opened URL: %s", strings.Split(rawURL, "?")[0])
+	}
+	return nil
 }

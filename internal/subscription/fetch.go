@@ -21,6 +21,8 @@ type Result struct {
 	UpdateIntervalHours   int
 	ProviderTitle         string
 	SubscriptionUserInfo  string
+	ProfileWebPageURL     string
+	SupportURL            string
 }
 
 // Fetcher downloads remote subscription documents.
@@ -87,6 +89,12 @@ func (f *Fetcher) Fetch(rawURL string) (Result, error) {
 	}
 	if v := headerGet(resp.Header, "Profile-Title"); v != "" {
 		out.ProviderTitle = strings.Trim(v, `"' `)
+	}
+	if v := headerGet(resp.Header, "Profile-Web-Page-Url"); v != "" {
+		out.ProfileWebPageURL = validateURL(strings.TrimSpace(v))
+	}
+	if v := headerGet(resp.Header, "Support-Url"); v != "" {
+		out.SupportURL = validateURL(strings.TrimSpace(v))
 	}
 	return out, nil
 }
@@ -195,4 +203,33 @@ func filenameFromDisposition(v string) string {
 	}
 	name := strings.TrimSpace(v[idx+len("filename="):])
 	return strings.Trim(name, `"'`)
+}
+
+// validateURL validates and returns a safe URL for profile web page or support links.
+// Only accepts absolute http/https URLs (and tg:// for support).
+// Returns empty string for invalid/unsafe URLs.
+func validateURL(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	// Accept http(s) for both, plus tg:// only for support (caller decides which field).
+	scheme := strings.ToLower(u.Scheme)
+	if scheme != "http" && scheme != "https" && scheme != "tg" {
+		return ""
+	}
+	// Reject relative URLs and dangerous schemes.
+	if !u.IsAbs() {
+		return ""
+	}
+	// Reject javascript:, file:, data:, etc.
+	if strings.Contains(strings.ToLower(raw), "javascript:") ||
+		strings.Contains(strings.ToLower(raw), "file:") ||
+		strings.Contains(strings.ToLower(raw), "data:") {
+		return ""
+	}
+	return u.String()
 }
