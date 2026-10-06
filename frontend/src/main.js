@@ -156,6 +156,27 @@ function renderQuotaCard(state) {
         </button>`).join('')
     : `<button class="quota-menu-item" type="button" data-action="go-profiles"><strong>Добавить профиль</strong><span>Импорт подписки или URI</span></button>`
 
+  const webPageURL = status.profileWebPageURL || ''
+  const supportURL = status.supportURL || ''
+  const expired = !!q.expired
+  const daysLeft = q.expireUnix > 0 ? Math.floor((q.expireUnix - Date.now() / 1000) / 86400) : -1
+  const trafficHigh = total > 0 && used / total >= 0.9
+  const isUrgent = expired || (daysLeft >= 0 && daysLeft <= 3) || trafficHigh
+  
+  let actionsHTML = ''
+  if (webPageURL || supportURL) {
+    actionsHTML = '<div class="quota-actions">'
+    if (webPageURL) {
+      const label = isUrgent ? 'Продлить' : 'Личный кабинет'
+      const cls = isUrgent ? 'quota-action-renew urgent' : 'quota-action-renew'
+      actionsHTML += `<button class="${cls}" type="button" data-action="open-url" data-url="${escapeHtml(webPageURL)}">${label}</button>`
+    }
+    if (supportURL) {
+      actionsHTML += `<button class="quota-action-support" type="button" data-action="open-url" data-url="${escapeHtml(supportURL)}">Поддержка</button>`
+    }
+    actionsHTML += '</div>'
+  }
+
   return `
     <div class="quota-card ${menuOpen ? 'menu-open' : ''} ${q.expired ? 'is-expired' : ''}">
       <button class="quota-sync" type="button" data-action="sync-active" title="${canSync ? 'Обновить подписку' : 'Обновить подписки'}" ${active || profiles.length ? '' : 'disabled'}>
@@ -179,6 +200,7 @@ function renderQuotaCard(state) {
           <span id="quota-text">${fmtBytes(used)} / ${fmtBytes(total > 0 ? total : -1)}</span>
           <span id="quota-expire">${escapeHtml(expireLabel(q.expireUnix))}</span>
         </div>
+        ${actionsHTML}
       </div>
     </div>
   `
@@ -2394,6 +2416,13 @@ async function boot() {
         const card = content.querySelector('.quota-card')
         if (menu) menu.classList.toggle('open', state.quotaMenuOpen)
         if (card) card.classList.toggle('menu-open', state.quotaMenuOpen)
+        return
+      }
+      if (action === 'open-url') {
+        const url = el.dataset.url
+        if (url) {
+          await bridge.OpenURL(url)
+        }
         return
       }
       if (action === 'sync-active') {

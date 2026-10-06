@@ -44,3 +44,4 @@ export async function QuitApp() { return null }
 export async function GetLogsTail() { return '' }
 export async function GetProxyEndpoints() { return { mixedPort: 7890, allowLan: false, loopback: '127.0.0.1:7890', lan: [] } }
 export async function CopyProxyEndpoint() { return null }
+export async function OpenURL() { return null }

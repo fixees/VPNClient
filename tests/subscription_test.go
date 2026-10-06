@@ -116,3 +116,122 @@ func TestSubscriptionFetchAndDue(t *testing.T) {
 		t.Fatal("expected due by profile interval")
 	}
 }
+
+func TestProfileWebPageAndSupportURLHeaders(t *testing.T) {
+	ss := "ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTp0ZXN0cGFzcw@example.com:8388#Node"
+	payload := base64.StdEncoding.EncodeToString([]byte(ss))
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Profile-Web-Page-Url", "https://panel.example.com/user/renew")
+		w.Header().Set("Support-Url", "https://t.me/example_support")
+		_, _ = w.Write([]byte(payload))
+	}))
+	t.Cleanup(srv.Close)
+
+	f := subscription.NewFetcher()
+	f.HTTPClient = srv.Client()
+	res, err := f.Fetch(srv.URL)
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if res.ProfileWebPageURL != "https://panel.example.com/user/renew" {
+		t.Errorf("ProfileWebPageURL: got %q, want %q", res.ProfileWebPageURL, "https://panel.example.com/user/renew")
+	}
+	if res.SupportURL != "https://t.me/example_support" {
+		t.Errorf("SupportURL: got %q, want %q", res.SupportURL, "https://t.me/example_support")
+	}
+}
+
+func TestProfileWebPageURLCaseInsensitive(t *testing.T) {
+	ss := "ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTp0ZXN0cGFzcw@example.com:8388#Node"
+	payload := base64.StdEncoding.EncodeToString([]byte(ss))
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("profile-web-page-url", "https://panel.example.com/account")
+		w.Header().Set("SUPPORT-URL", "tg://resolve?domain=example")
+		_, _ = w.Write([]byte(payload))
+	}))
+	t.Cleanup(srv.Close)
+
+	f := subscription.NewFetcher()
+	f.HTTPClient = srv.Client()
+	res, err := f.Fetch(srv.URL)
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if res.ProfileWebPageURL != "https://panel.example.com/account" {
+		t.Errorf("ProfileWebPageURL case insensitive: got %q", res.ProfileWebPageURL)
+	}
+	if res.SupportURL != "tg://resolve?domain=example" {
+		t.Errorf("SupportURL case insensitive: got %q", res.SupportURL)
+	}
+}
+
+func TestURLValidationRejectsUnsafeSchemes(t *testing.T) {
+	ss := "ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTp0ZXN0cGFzcw@example.com:8388#Node"
+	payload := base64.StdEncoding.EncodeToString([]byte(ss))
+	tests := []struct {
+		name       string
+		webPageURL string
+		supportURL string
+		expectWeb  string
+		expectSup  string
+	}{
+		{"javascript rejected", "javascript:alert(1)", "", "", ""},
+		{"file rejected", "file:///etc/passwd", "", "", ""},
+		{"data rejected", "", "data:text/html,<script>alert(1)</script>", "", ""},
+		{"ftp rejected", "ftp://example.com", "", "", ""},
+		{"relative rejected", "/relative/path", "", "", ""},
+		{"http accepted", "http://panel.example.com", "", "http://panel.example.com", ""},
+		{"https accepted", "https://panel.example.com", "", "https://panel.example.com", ""},
+		{"tg accepted", "", "tg://resolve?domain=example", "", "tg://resolve?domain=example"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if tt.webPageURL != "" {
+					w.Header().Set("Profile-Web-Page-Url", tt.webPageURL)
+				}
+				if tt.supportURL != "" {
+					w.Header().Set("Support-Url", tt.supportURL)
+				}
+				_, _ = w.Write([]byte(payload))
+			}))
+			defer srv.Close()
+
+			f := subscription.NewFetcher()
+			f.HTTPClient = srv.Client()
+			res, err := f.Fetch(srv.URL)
+			if err != nil {
+				t.Fatalf("Fetch: %v", err)
+			}
+			if res.ProfileWebPageURL != tt.expectWeb {
+				t.Errorf("ProfileWebPageURL: got %q, want %q", res.ProfileWebPageURL, tt.expectWeb)
+			}
+			if res.SupportURL != tt.expectSup {
+				t.Errorf("SupportURL: got %q, want %q", res.SupportURL, tt.expectSup)
+			}
+		})
+	}
+}
+
+func TestURLsClearedOnEmptyHeader(t *testing.T) {
+	ss := "ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTp0ZXN0cGFzcw@example.com:8388#Node"
+	payload := base64.StdEncoding.EncodeToString([]byte(ss))
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(payload))
+	}))
+	t.Cleanup(srv.Close)
+
+	f := subscription.NewFetcher()
+	f.HTTPClient = srv.Client()
+	res, err := f.Fetch(srv.URL)
+	if err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	if res.ProfileWebPageURL != "" {
+		t.Errorf("ProfileWebPageURL should be empty when header absent, got %q", res.ProfileWebPageURL)
+	}
+	if res.SupportURL != "" {
+		t.Errorf("SupportURL should be empty when header absent, got %q", res.SupportURL)
+	}
+}

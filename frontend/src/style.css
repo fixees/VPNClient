@@ -420,6 +420,37 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .quota-card.is-expired .bar > i {
   background: linear-gradient(90deg, #ff8f8f, #ff6b6b);
 }
+.quota-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.quota-action-renew,
+.quota-action-support {
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+  transition: 0.15s ease;
+  white-space: nowrap;
+}
+.quota-action-renew:hover,
+.quota-action-support:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(47, 140, 255, 0.4);
+}
+.quota-action-renew.urgent {
+  border-color: rgba(255, 200, 87, 0.45);
+  background: rgba(255, 200, 87, 0.12);
+  color: #ffd36a;
+}
+.quota-action-renew.urgent:hover {
+  background: rgba(255, 200, 87, 0.2);
+  border-color: rgba(255, 200, 87, 0.6);
+}
 
 .profile-chip {
   display: none;

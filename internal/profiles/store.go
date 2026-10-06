@@ -55,6 +55,8 @@ type Profile struct {
 	LastSyncAt          string      `json:"lastSyncAt,omitempty"` // RFC3339
 	UpdateIntervalHours int         `json:"updateIntervalHours,omitempty"`
 	ProviderTitle       string      `json:"providerTitle,omitempty"`
+	ProfileWebPageURL   string      `json:"profileWebPageUrl,omitempty"`
+	SupportURL          string      `json:"supportUrl,omitempty"`
 }
 
 // Settings are persisted client preferences.
